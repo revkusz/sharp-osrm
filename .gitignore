@@ -1,29 +1,20 @@
-
-# ── GSD baseline (auto-generated) ──
-.gsd
-.gsd-id
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*~
-.idea/
-.vscode/
-*.code-workspace
-.env
-.env.*
-!.env.example
-node_modules/
-.next/
-dist/
+## Build outputs
+bin/
+obj/
 build/
-__pycache__/
-*.pyc
-.venv/
-venv/
-target/
-vendor/
-*.log
-coverage/
-.cache/
-tmp/
+
+## OSRM test data (generated at runtime)
+osrm-backend/
+
+## IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+## macOS
+.DS_Store
+
+## .NET
+*.deps.json
+*.runtimeconfig.json
