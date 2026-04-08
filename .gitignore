@@ -4,7 +4,7 @@ obj/
 build/
 
 ## OSRM test data (generated at runtime)
-osrm-backend/
+# osrm-backend/ is now a git submodule — no longer ignored
 
 ## IDE
 .vs/
