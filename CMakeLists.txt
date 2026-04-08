@@ -78,9 +78,14 @@ if(ENABLE_CONAN)
     # Override OSRM's conan install: point CONAN_EXECUTABLE to a no-op script
     # so OSRM's ENABLE_CONAN block finds conan but doesn't re-install packages.
     # The real Conan install already happened at the root level.
-    file(WRITE ${CMAKE_BINARY_DIR}/conan-noop.sh "#!/bin/sh\nexit 0\n")
-    file(CHMOD ${CMAKE_BINARY_DIR}/conan-noop.sh PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
-    set(CONAN_EXECUTABLE "${CMAKE_BINARY_DIR}/conan-noop.sh" CACHE FILEPATH "Conan executable" FORCE)
+    if(WIN32)
+        file(WRITE ${CMAKE_BINARY_DIR}/conan-noop.cmd "@echo off\nexit /b 0\n")
+        set(CONAN_EXECUTABLE "${CMAKE_BINARY_DIR}/conan-noop.cmd" CACHE FILEPATH "Conan executable" FORCE)
+    else()
+        file(WRITE ${CMAKE_BINARY_DIR}/conan-noop.sh "#!/bin/sh\nexit 0\n")
+        file(CHMOD ${CMAKE_BINARY_DIR}/conan-noop.sh PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
+        set(CONAN_EXECUTABLE "${CMAKE_BINARY_DIR}/conan-noop.sh" CACHE FILEPATH "Conan executable" FORCE)
+    endif()
 
     add_subdirectory(osrm-backend)
 
