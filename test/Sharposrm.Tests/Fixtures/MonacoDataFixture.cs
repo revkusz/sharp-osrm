@@ -51,12 +51,7 @@ public class MonacoDataFixture : IDisposable
 
         string monacoPbf = Path.Combine(repoRoot, "osrm-backend", "test", "data", "monaco.osm.pbf");
 
-        // Prefer the Homebrew-installed car.lua which matches the compiled OSRM library version.
-        // The submodule's car.lua may reference Lua APIs (e.g., Obstacle.new with 4 args for barrier_penalties)
-        // that are only available in the OSRM version it was bundled with, not the installed one.
-        string homebrewProfile = "/opt/homebrew/share/osrm/profiles/car.lua";
-        string submoduleProfile = Path.Combine(repoRoot, "osrm-backend", "profiles", "car.lua");
-        string carProfile = File.Exists(homebrewProfile) ? homebrewProfile : submoduleProfile;
+        string carProfile = Path.Combine(repoRoot, "osrm-backend", "profiles", "car.lua");
 
         if (!File.Exists(monacoPbf))
             throw new InvalidOperationException(
@@ -64,7 +59,7 @@ public class MonacoDataFixture : IDisposable
 
         if (!File.Exists(carProfile))
             throw new InvalidOperationException(
-                $"Car profile not found at '{carProfile}'. Ensure the osrm-backend submodule is initialized or Homebrew osrm-backend is installed.");
+                $"Car profile not found at '{carProfile}'. Ensure the osrm-backend submodule is initialized.");
 
         // Create a unique temp directory to avoid collisions across parallel runs
         _tempDir = Path.Combine(Path.GetTempPath(), $"sharposrm-monaco-{Guid.NewGuid():N}");

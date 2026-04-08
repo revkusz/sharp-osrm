@@ -16,14 +16,8 @@ public class PipelinePositiveTests
 
     private const string MonacoOsmPbf = "osrm-backend/test/data/monaco.osm.pbf";
 
-    // Prefer Homebrew's car.lua which matches the installed OSRM library version.
-    // The submodule car.lua may use Lua APIs not available in the installed Sol2 binding.
-    private const string HomebrewCarProfile = "/opt/homebrew/share/osrm/profiles/car.lua";
-    private const string SubmoduleCarProfile = "osrm-backend/profiles/car.lua";
-
-    private static string CarProfilePath => File.Exists(HomebrewCarProfile)
-        ? HomebrewCarProfile
-        : Path.Combine(RepoRoot, SubmoduleCarProfile);
+    private const string CarProfile = "osrm-backend/profiles/car.lua";
+    private static string CarProfilePath => Path.Combine(RepoRoot, CarProfile);
 
     // Resolve paths relative to repo root (not test bin directory).
     private static readonly string RepoRoot = FindRepoRoot();
