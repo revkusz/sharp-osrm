@@ -15,17 +15,17 @@
 #include <engine/api/match_parameters.hpp>
 #include <osrm/tile_parameters.hpp>
 #include <engine/api/tile_parameters.hpp>
-#include <osrm/engine/api/base_result.hpp>
+#include <engine/api/base_result.hpp>
 
 /* Pipeline headers — extract, partition, customize, contract */
 #include <osrm/extractor.hpp>
-#include <osrm/extractor/extractor_config.hpp>
+#include <extractor/extractor_config.hpp>
 #include <osrm/partitioner.hpp>
-#include <osrm/partitioner/partitioner_config.hpp>
+#include <partitioner/partitioner_config.hpp>
 #include <osrm/customizer.hpp>
 #include <customizer/customizer_config.hpp>
 #include <osrm/contractor.hpp>
-#include <osrm/contractor/contractor_config.hpp>
+#include <contractor/contractor_config.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <util/json_container.hpp>
 

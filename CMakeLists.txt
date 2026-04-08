@@ -38,6 +38,24 @@ if(ENABLE_CONAN)
 
     # Load Conan-generated toolchain (sets CMAKE_PREFIX_PATH for find_package)
     include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake)
+
+    # Conan sets CMAKE_OSX_SYSROOT to just the SDK name (e.g. "macosx") which
+    # works with the Xcode generator but not Makefiles/Ninja.  Resolve to the
+    # full path if it is not already one.
+    if(APPLE AND CMAKE_OSX_SYSROOT AND NOT IS_ABSOLUTE "${CMAKE_OSX_SYSROOT}")
+        execute_process(
+            COMMAND xcrun --show-sdk-path --sdk ${CMAKE_OSX_SYSROOT}
+            OUTPUT_VARIABLE _resolved_sdk
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            RESULT_VARIABLE _sdk_result
+        )
+        if(_sdk_result EQUAL 0 AND EXISTS "${_resolved_sdk}")
+            set(CMAKE_OSX_SYSROOT "${_resolved_sdk}" CACHE PATH "macOS SDK path" FORCE)
+            message(STATUS "Resolved CMAKE_OSX_SYSROOT: ${CMAKE_OSX_SYSROOT}")
+        else()
+            message(WARNING "Could not resolve SDK path for '${CMAKE_OSX_SYSROOT}': ${_resolved_sdk}")
+        endif()
+    endif()
 endif()
 
 # ── Build path ───────────────────────────────────────────────────────────
@@ -79,10 +97,14 @@ if(ENABLE_CONAN)
 
     target_include_directories(sharposrm PRIVATE
         ${LibOSRM_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/osrm-backend/third_party/flatbuffers/include
     )
 
-    target_compile_definitions(sharposrm PRIVATE
-        ${LibOSRM_CXXFLAGS}
+    # CXXFLAGS is a space-separated string; convert to a CMake list for compile options
+    separate_arguments(_OSRM_CXXFLAGS NATIVE_COMMAND "${LibOSRM_CXXFLAGS}")
+
+    target_compile_options(sharposrm PRIVATE
+        ${_OSRM_CXXFLAGS}
     )
 
     # Link against OSRM CMake targets (not file paths).
