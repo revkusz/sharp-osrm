@@ -15,6 +15,9 @@ build/
 ## macOS
 .DS_Store
 
+## bg-shell state
+.bg-shell/
+
 ## .NET
 *.deps.json
 *.runtimeconfig.json
