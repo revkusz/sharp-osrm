@@ -3,6 +3,7 @@ name: Build Native Library
 on:
   push:
     branches: [main]
+    tags: ['v*.*.*']
   pull_request:
     branches: [main]
 
@@ -182,6 +183,20 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Resolve package version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" == "tag" ]; then
+            # Strip the leading 'v' from the tag name (v1.2.3 → 1.2.3)
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            # Non-tag builds: read the version from the .csproj and append a pre-release suffix
+            CSPROJ_VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Sharposrm/Sharposrm.csproj)
+            VERSION="${CSPROJ_VERSION}-dev.${GITHUB_SHA:0:7}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Resolved package version: $VERSION"
+
       - name: Download all native artifacts
         uses: actions/download-artifact@v4
         with:
@@ -195,25 +210,30 @@ jobs:
           # Reorganize from native-libs/sharposrm-{macos|linux}-*/{lib} to native-libs/{rid}/{lib}
           # Note: artifact names use 'macos-' but NuGet RIDs use 'osx-' (dotnet convention).
           mkdir -p native-libs/{linux-x64,osx-x64,osx-arm64,win-x64}
-          mv native-libs/sharposrm-linux-x64/libsharposrm.so     native-libs/linux-x64/
-          mv native-libs/sharposrm-macos-x64/libsharposrm.dylib  native-libs/osx-x64/
-          mv native-libs/sharposrm-macos-arm64/libsharposrm.dylib native-libs/osx-arm64/
-          mv native-libs/sharposrm-win-x64/sharposrm.dll         native-libs/win-x64/
+          mv native-libs/sharposrm-linux-x64/libsharposrm.so      native-libs/linux-x64/
+          mv native-libs/sharposrm-macos-x64/libsharposrm.dylib   native-libs/osx-x64/
+          mv native-libs/sharposrm-macos-arm64/libsharposrm.dylib  native-libs/osx-arm64/
+          mv native-libs/sharposrm-win-x64/sharposrm.dll          native-libs/win-x64/
           rm -rf native-libs/sharposrm-*
           echo "=== Native library layout ==="
           find native-libs -type f | sort
 
       - name: Pack NuGet package
         shell: bash
-        run: dotnet pack src/Sharposrm/Sharposrm.csproj -c Release -p:NativeLibsDir=native-libs/ -o nupkg-output/
+        run: |
+          dotnet pack src/Sharposrm/Sharposrm.csproj \
+            -c Release \
+            -p:Version="$VERSION" \
+            -p:NativeLibsDir=native-libs/ \
+            -o nupkg-output/
 
       - name: Validate package structure
         shell: bash
         run: |
-          NUPKG="nupkg-output/Sharposrm.0.2.0.nupkg"
-          if [ ! -f "$NUPKG" ]; then
-            echo "ERROR: $NUPKG not found!"
-            ls -R nupkg-output/
+          NUPKG=$(ls nupkg-output/*.nupkg | head -1)
+          if [ -z "$NUPKG" ]; then
+            echo "ERROR: no .nupkg found in nupkg-output/"
+            ls -R nupkg-output/ || true
             exit 1
           fi
           echo "Found package: $NUPKG"
@@ -245,7 +265,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sharposrm-nupkg
-          path: nupkg-output/Sharposrm.0.2.0.nupkg
+          path: nupkg-output/*.nupkg
           retention-days: 7
           if-no-files-found: error
 
@@ -285,3 +305,33 @@ jobs:
       - name: Run integration tests
         shell: bash
         run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    runs-on: ubuntu-24.04
+    needs: [integration-test]
+    # Only run on version tags — never on branch pushes or PRs
+    if: github.ref_type == 'tag'
+    environment: release
+    timeout-minutes: 10
+    steps:
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download NuGet package
+        uses: actions/download-artifact@v4
+        with:
+          name: sharposrm-nupkg
+          path: nupkg-publish
+
+      - name: Push to NuGet.org
+        shell: bash
+        run: |
+          NUPKG=$(ls nupkg-publish/*.nupkg | head -1)
+          echo "Publishing: $NUPKG"
+          dotnet nuget push "$NUPKG" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
