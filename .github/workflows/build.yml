@@ -230,23 +230,38 @@ jobs:
             # and ignores the bundled copies sitting next to it.
             sudo apt-get install -y patchelf
 
-            # Use ldd to find the actual Conan library paths — this is
-            # reliable because ldd resolves the RPATH that was set at build
-            # time. Then also find libtbbmalloc.so.2 from the same TBB dir.
+            # Use ldd to find the actual Conan library paths — ldd resolves
+            # the RPATH that was set at build time.
             for dep in $(ldd "$LIB_PATH" | awk '/\.conan2/{print $3}'); do
-              cp "$dep" "$STAGING/" && echo "Bundled: $(basename $dep)"
+              cp -L "$dep" "$STAGING/" && echo "Bundled: $(basename $dep)"
             done
 
             # libtbbmalloc.so.2 is a transitive dep of libtbbmalloc_proxy
-            # that doesn't show up in ldd (the proxy's RPATH can't resolve
-            # it). Find it next to libtbb.so.12 in the Conan cache.
-            TBB_LIB=$(find "$HOME/.conan2" -name "libtbb.so.12" -type f 2>/dev/null | head -1)
-            if [ -n "$TBB_LIB" ]; then
-              TBB_DIR=$(dirname "$TBB_LIB")
-              for lib in "$TBB_DIR/libtbbmalloc.so.2" "$TBB_DIR/libtbbmalloc_proxy.so.2"; do
-                [ -f "$lib" ] && cp "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
+            # that doesn't show up in ldd of the main library (the proxy's
+            # RPATH can't resolve it at this point). Search the Conan cache
+            # directly for it. Also run ldd on each bundled .so to catch any
+            # other transitive deps the first pass missed.
+            for lib_name in libtbbmalloc.so.2; do
+              # Use -type l or -type f — Conan may ship these as symlinks
+              found=$(find "$HOME/.conan2" \( -type f -o -type l \) -name "$lib_name" 2>/dev/null | head -1)
+              if [ -n "$found" ]; then
+                cp -L "$found" "$STAGING/" && echo "Bundled (transitive): $lib_name"
+              else
+                echo "WARNING: Could not find $lib_name in Conan cache"
+              fi
+            done
+
+            # Second pass: run ldd on every bundled .so to catch any deps
+            # that the first ldd on the main library missed (e.g. deps of
+            # deps whose RPATH is not yet resolved).
+            for so in "$STAGING"/*.so*; do
+              for dep in $(ldd "$so" 2>/dev/null | awk '/\.conan2/{print $3}'); do
+                base=$(basename "$dep")
+                if [ ! -f "$STAGING/$base" ]; then
+                  cp -L "$dep" "$STAGING/" && echo "Bundled (2nd pass): $base"
+                fi
               done
-            fi
+            done
 
             # Rewrite RPATH on every .so in staging to $ORIGIN so the dynamic
             # linker finds co-located deps regardless of install path.
@@ -270,7 +285,7 @@ jobs:
               "$TBB_DIR/libtbbmalloc.2.dylib" \
               "$TBB_DIR/libtbbmalloc_proxy.2.dylib" \
               "$BZ2_DIR/libbz2.1.dylib"; do
-              [ -f "$lib" ] && cp "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
+              [ -f "$lib" ] && cp -L "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
             done
 
             # Add @loader_path and delete all absolute Conan RPATHs so the
