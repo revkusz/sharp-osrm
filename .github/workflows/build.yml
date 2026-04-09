@@ -203,11 +203,56 @@ jobs:
         shell: bash
         run: bash scripts/verify-build.sh ${{ matrix.platform.lib_path }}
 
+      - name: Collect runtime dependencies
+        shell: bash
+        run: |
+          # Copy the main library and its Conan-built shared dependencies into
+          # a single staging directory so they all land in runtimes/{rid}/native/
+          # in the NuGet package. Without this, the integration test runner has
+          # no Conan cache and DllNotFoundException fires on libtbb / libbz2.
+          STAGING="staging/${{ matrix.platform.artifact }}"
+          mkdir -p "$STAGING"
+
+          LIB_PATH="${{ matrix.platform.lib_path }}"
+          cp "$LIB_PATH" "$STAGING/"
+
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            # Collect every non-system shared dependency (i.e. those resolved
+            # from the Conan cache) by reading ldd output.
+            ldd "$LIB_PATH" | awk '/\.conan2/{print $3}' | while read dep; do
+              [ -f "$dep" ] && cp "$dep" "$STAGING/" && echo "Bundled: $(basename $dep)"
+            done
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            # otool -L lists all dylib links; collect those living in ~/.conan2
+            otool -L "$LIB_PATH" | awk '/\.conan2/{print $1}' | while read dep; do
+              [ -f "$dep" ] && cp "$dep" "$STAGING/" && echo "Bundled: $(basename $dep)"
+            done
+            # Rewrite @rpath/* references to @loader_path/* so the dylibs find
+            # each other regardless of install location.
+            for dylib in "$STAGING"/*.dylib; do
+              install_name_tool -add_rpath @loader_path "$dylib" 2>/dev/null || true
+            done
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            # On Windows, Conan DLLs are in the Conan package bin/ dirs.
+            # Find them by looking at the build directory for copied DLLs,
+            # or search the Conan cache directly for known TBB/bzip2 DLLs.
+            CONAN_HOME="${USERPROFILE}/.conan2"
+            for dll in tbb12.dll tbbmalloc.dll tbbmalloc_proxy.dll bz2.dll; do
+              found=$(find "$CONAN_HOME" -name "$dll" -type f 2>/dev/null | head -1)
+              if [ -n "$found" ]; then
+                cp "$found" "$STAGING/" && echo "Bundled: $dll"
+              fi
+            done
+          fi
+
+          echo "=== Staging contents ==="
+          ls -lh "$STAGING/"
+
       - name: Upload native library
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform.artifact }}
-          path: ${{ matrix.platform.lib_path }}
+          path: staging/${{ matrix.platform.artifact }}/
           retention-days: 7
           if-no-files-found: error
 
@@ -300,10 +345,12 @@ jobs:
           # download-artifact@v4 creates subdirectories per artifact name.
           # Reorganize from native-libs/sharposrm-{macos|linux}-*/{lib} to native-libs/{rid}/{lib}
           # Note: artifact names use 'macos-' but NuGet RIDs use 'osx-' (dotnet convention).
+          # Artifacts now contain the main library + bundled Conan dependencies.
+          # Move everything from the per-artifact dirs into the RID-named dirs.
           mkdir -p native-libs/{linux-x64,osx-arm64,win-x64}
-          mv native-libs/sharposrm-linux-x64/libsharposrm.so      native-libs/linux-x64/
-          mv native-libs/sharposrm-macos-arm64/libsharposrm.dylib  native-libs/osx-arm64/
-          mv native-libs/sharposrm-win-x64/sharposrm.dll          native-libs/win-x64/
+          mv native-libs/sharposrm-linux-x64/*   native-libs/linux-x64/
+          mv native-libs/sharposrm-macos-arm64/* native-libs/osx-arm64/
+          mv native-libs/sharposrm-win-x64/*     native-libs/win-x64/
           rm -rf native-libs/sharposrm-*
           echo "=== Native library layout ==="
           find native-libs -type f | sort

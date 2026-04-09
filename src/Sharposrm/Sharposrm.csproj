@@ -21,11 +21,13 @@
 
   <!-- Native libraries for NuGet package (activated when NativeLibsDir is set in CI).
        NativeLibsDir must be an absolute path — MSBuild resolves Include paths relative
-       to the .csproj, so a relative path passed via -p:NativeLibsDir would be wrong. -->
+       to the .csproj, so a relative path passed via -p:NativeLibsDir would be wrong.
+       Each RID directory contains the main lib plus bundled Conan shared dependencies
+       (TBB, bzip2, etc.) so consumers don't need the Conan cache at runtime. -->
   <ItemGroup Condition="'$(NativeLibsDir)' != ''">
-    <None Include="$(NativeLibsDir)/linux-x64/libsharposrm.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
-    <None Include="$(NativeLibsDir)/osx-arm64/libsharposrm.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
-    <None Include="$(NativeLibsDir)/win-x64/sharposrm.dll" Pack="true" PackagePath="runtimes/win-x64/native/" />
+    <None Include="$(NativeLibsDir)/linux-x64/**" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+    <None Include="$(NativeLibsDir)/osx-arm64/**" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+    <None Include="$(NativeLibsDir)/win-x64/**" Pack="true" PackagePath="runtimes/win-x64/native/" />
   </ItemGroup>
 
   <!-- Pack license and notices into the NuGet package (files are at repo root) -->
