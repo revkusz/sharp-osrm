@@ -485,6 +485,9 @@ typedef struct SharposrmMatchParams
 
     SharposrmGapsType gaps;                /* split or ignore */
     int tidy;                              /* 0 or 1: tidy input coordinates */
+
+    const size_t* waypoints;               /* nullable array of waypoint indices */
+    int waypoint_count;                    /* 0 if waypoints is null */
 } SharposrmMatchParams;
 
 SHARPOSRM_EXPORT int sharposrm_match(void* engine,

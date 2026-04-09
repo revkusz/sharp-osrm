@@ -504,6 +504,63 @@ public class RouteServicePositiveTests
         Assert.True(response.Routes[0].Duration > 0);
         Assert.True(response.Routes[0].Distance > 0);
     }
+
+    // ── Waypoint indices tests ─────────────────────────────────────────
+
+    private static readonly (double Longitude, double Latitude)[] FourMonacoCoordinates =
+    {
+        (7.41337, 43.72956),
+        (7.41546, 43.73077),
+        (7.41862, 43.73216),
+        (7.41983, 43.73115),
+    };
+
+    [Fact]
+    public async Task RouteWithWaypointIndices_HasFewerLegs()
+    {
+        var config = CreateMonacoConfig();
+        await using var engine = OsrmEngine.Create(config);
+
+        var parameters = new RouteParameters
+        {
+            Coordinates = FourMonacoCoordinates,
+            Waypoints = new List<int> { 0, 3 },
+        };
+
+        var response = engine.Route(parameters);
+
+        Assert.Equal("Ok", response.Code);
+        Assert.NotNull(response.Routes);
+        Assert.NotEmpty(response.Routes);
+
+        // With waypoints=[0,3], only the first and last coordinates are stops → 1 leg.
+        var legs = response.Routes[0].Legs;
+        Assert.NotNull(legs);
+        Assert.Single(legs);
+    }
+
+    [Fact]
+    public async Task RouteWithoutWaypoints_AllCoordinatesAreStops()
+    {
+        var config = CreateMonacoConfig();
+        await using var engine = OsrmEngine.Create(config);
+
+        var parameters = new RouteParameters
+        {
+            Coordinates = FourMonacoCoordinates,
+        };
+
+        var response = engine.Route(parameters);
+
+        Assert.Equal("Ok", response.Code);
+        Assert.NotNull(response.Routes);
+        Assert.NotEmpty(response.Routes);
+
+        // Without waypoints, all 4 coordinates are stops → 3 legs.
+        var legs = response.Routes[0].Legs;
+        Assert.NotNull(legs);
+        Assert.Equal(3, legs.Count);
+    }
 }
 
 /// <summary>

@@ -1018,6 +1018,16 @@ osrm::engine::api::MatchParameters translate_match_params(const SharposrmMatchPa
     mp.gaps = gaps;
     mp.tidy = (params->tidy != 0);
 
+    /* Waypoints — indices of actual stop coordinates */
+    if (params->waypoints && params->waypoint_count > 0)
+    {
+        mp.waypoints.reserve(static_cast<size_t>(params->waypoint_count));
+        for (int i = 0; i < params->waypoint_count; ++i)
+        {
+            mp.waypoints.push_back(params->waypoints[i]);
+        }
+    }
+
     return mp;
 }
 

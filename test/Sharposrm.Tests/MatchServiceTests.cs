@@ -346,6 +346,96 @@ public class MatchServicePositiveTests
                 "Tracepoint should have a name.");
         }
     }
+
+    // ── Waypoint indices tests ─────────────────────────────────────────
+
+    private static readonly (double Longitude, double Latitude)[] FourMonacoMatchCoordinates =
+    {
+        (7.41337, 43.72956),
+        (7.41546, 43.73077),
+        (7.41862, 43.73216),
+        (7.41983, 43.73115),
+    };
+
+    private static readonly uint[] FourMonacoTimestamps =
+    {
+        1424684612u,
+        1424684626u,
+        1424684640u,
+        1424684654u,
+    };
+
+    [Fact]
+    public async Task MatchWithWaypointIndices_HasFewerLegs()
+    {
+        var config = CreateMonacoConfig();
+        await using var engine = OsrmEngine.Create(config);
+
+        // Without waypoints — baseline match with 3 coordinates
+        var paramsNoWaypoints = new MatchParameters
+        {
+            Coordinates = MonacoCoordinates,
+            Timestamps = MonacoTimestamps,
+            // Skip waypoints in response to avoid deserialization issues with null waypoint_index
+            SkipWaypoints = true,
+        };
+        var responseNoWaypoints = engine.Match(paramsNoWaypoints);
+
+        Assert.Equal("Ok", responseNoWaypoints.Code);
+        Assert.NotNull(responseNoWaypoints.Matchings);
+        Assert.NotEmpty(responseNoWaypoints.Matchings);
+        var legsWithout = responseNoWaypoints.Matchings![0].Legs!;
+        Assert.True(legsWithout.Count >= 1, "Baseline match should have at least 1 leg.");
+
+        // With waypoints=[0,2] — only first and last are stops
+        var paramsWithWaypoints = new MatchParameters
+        {
+            Coordinates = MonacoCoordinates,
+            Timestamps = MonacoTimestamps,
+            Waypoints = new List<int> { 0, 2 },
+            SkipWaypoints = true,
+        };
+        var responseWithWaypoints = engine.Match(paramsWithWaypoints);
+
+        Assert.Equal("Ok", responseWithWaypoints.Code);
+        Assert.NotNull(responseWithWaypoints.Matchings);
+        Assert.NotEmpty(responseWithWaypoints.Matchings);
+
+        var legsWith = responseWithWaypoints.Matchings![0].Legs!;
+        Assert.True(legsWith.Count >= 1, "Match with waypoints should have at least 1 leg.");
+
+        // The matching with waypoints should have fewer legs than without
+        Assert.True(legsWith.Count < legsWithout.Count,
+            $"Expected fewer legs with waypoints=[0,2] ({legsWith.Count}) than without ({legsWithout.Count}).");
+    }
+
+    [Fact]
+    public async Task MatchWithoutWaypoints_AllCoordinatesAreStops()
+    {
+        var config = CreateMonacoConfig();
+        await using var engine = OsrmEngine.Create(config);
+
+        var parameters = new MatchParameters
+        {
+            Coordinates = FourMonacoMatchCoordinates,
+            Timestamps = FourMonacoTimestamps,
+            SkipWaypoints = true,
+        };
+
+        var response = engine.Match(parameters);
+
+        Assert.Equal("Ok", response.Code);
+        Assert.NotNull(response.Matchings);
+        Assert.NotEmpty(response.Matchings);
+
+        // Without waypoints, all coordinates are treated as stops.
+        // The matching should have at least 1 leg and produce a valid route.
+        var matching = response.Matchings![0];
+        var legs = matching.Legs;
+        Assert.NotNull(legs);
+        Assert.NotEmpty(legs);
+        Assert.True(matching.Distance > 0, "Matching should have a positive distance.");
+    }
 }
 
 public class MatchServiceNegativeTests

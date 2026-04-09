@@ -314,11 +314,11 @@ public sealed class MatchParameters
         if (Waypoints is not null && Waypoints.Count > 0)
         {
             waypointCount = Waypoints.Count;
-            waypointsPtr = Marshal.AllocHGlobal(waypointCount * sizeof(int));
+            waypointsPtr = Marshal.AllocHGlobal(waypointCount * IntPtr.Size);
 
             for (int i = 0; i < waypointCount; i++)
             {
-                Marshal.WriteInt32(waypointsPtr, i * sizeof(int), Waypoints[i]);
+                Marshal.WriteIntPtr(waypointsPtr, i * IntPtr.Size, (IntPtr)Waypoints[i]);
             }
 
             scope.AddAllocation(waypointsPtr);
