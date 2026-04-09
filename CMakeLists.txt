@@ -87,6 +87,13 @@ if(ENABLE_CONAN)
         set(CONAN_EXECUTABLE "${CMAKE_BINARY_DIR}/conan-noop.sh" CACHE FILEPATH "Conan executable" FORCE)
     endif()
 
+    # GCC 13+ emits false-positive -Warray-bounds errors in sol2 header
+    # templates used by osrm-backend (scripting_environment_lua.cpp).
+    # This is a known upstream issue; suppress it as an error for the subproject.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        add_compile_options(-Wno-error=array-bounds)
+    endif()
+
     add_subdirectory(osrm-backend)
 
     # After add_subdirectory, OSRM exposes these to parent scope:

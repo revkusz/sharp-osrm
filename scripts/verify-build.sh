@@ -61,10 +61,10 @@ FILE_SIZE_KB=$((FILE_SIZE_BYTES / 1024))
 echo "── Check 1: File size > ${MIN_SIZE_KB}KB ──"
 if [ "$FILE_SIZE_KB" -gt "$MIN_SIZE_KB" ]; then
     info "Library size: ${FILE_SIZE_KB}KB (>${MIN_SIZE_KB}KB)"
-    ((pass++))
+    pass=$((pass + 1))
 else
     error "Library too small: ${FILE_SIZE_KB}KB (expected >${MIN_SIZE_KB}KB)"
-    ((fail++))
+    fail=$((fail + 1))
 fi
 echo ""
 
@@ -104,10 +104,10 @@ echo "$SYMBOLS" | sed 's/^/  /'
 
 if [ "$SYMBOL_COUNT" -eq "$EXPECTED_SYMBOL_COUNT" ]; then
     info "Symbol count: ${SYMBOL_COUNT} == ${EXPECTED_SYMBOL_COUNT}"
-    ((pass++))
+    pass=$((pass + 1))
 else
     error "Symbol count: ${SYMBOL_COUNT} != ${EXPECTED_SYMBOL_COUNT}"
-    ((fail++))
+    fail=$((fail + 1))
 fi
 echo ""
 
@@ -124,22 +124,22 @@ case "$OS" in
         HOMEBREW_DEPS=$(echo "$DEPS" | grep -c '/opt/homebrew\|/usr/local/Cellar' || true)
         if [ "$HOMEBREW_DEPS" -eq 0 ]; then
             info "No Homebrew paths in dynamic dependencies"
-            ((pass++))
+            pass=$((pass + 1))
         else
             error "Found Homebrew paths in dynamic dependencies:"
             echo "$DEPS" | grep '/opt/homebrew\|/usr/local/Cellar' | sed 's/^/    /'
-            ((fail++))
+            fail=$((fail + 1))
         fi
 
         # Check that Conan cache paths are present (expected when building with Conan)
         CONAN_DEPS=$(echo "$DEPS" | grep -c '.conan2' || true)
         if [ "$CONAN_DEPS" -gt 0 ]; then
             info "Found Conan cache paths in dependencies (${CONAN_DEPS} deps)"
-            ((pass++))
+            pass=$((pass + 1))
         else
             warn "No Conan cache paths found in dependencies (may be statically linked or using system libs)"
             # Not a hard failure — deps may be statically linked
-            ((pass++))
+            pass=$((pass + 1))
         fi
         ;;
     Linux)
@@ -151,17 +151,17 @@ case "$OS" in
         HOMEBREW_DEPS=$(echo "$DEPS" | grep -c '/opt/homebrew\|/usr/local/Cellar' || true)
         if [ "$HOMEBREW_DEPS" -eq 0 ]; then
             info "No Homebrew paths in dynamic dependencies"
-            ((pass++))
+            pass=$((pass + 1))
         else
             error "Found Homebrew paths in dynamic dependencies"
-            ((fail++))
+            fail=$((fail + 1))
         fi
 
         # Check that expected libraries are present
         for lib in libboost libtbb liblua; do
             if echo "$DEPS" | grep -q "$lib"; then
                 info "Found expected dependency: $lib"
-                ((pass++))
+                pass=$((pass + 1))
             else
                 warn "Expected dependency not found: $lib (may be statically linked)"
             fi
@@ -180,22 +180,22 @@ case "$OS" in
         if file "$LIB_PATH" | grep -q 'Mach-O'; then
             info "Library is a valid Mach-O binary"
             echo "  $(file "$LIB_PATH")"
-            ((pass++))
+            pass=$((pass + 1))
         else
             error "Library is not a valid Mach-O binary"
             echo "  $(file "$LIB_PATH")"
-            ((fail++))
+            fail=$((fail + 1))
         fi
         ;;
     Linux)
         if file "$LIB_PATH" | grep -q 'ELF'; then
             info "Library is a valid ELF binary"
             echo "  $(file "$LIB_PATH")"
-            ((pass++))
+            pass=$((pass + 1))
         else
             error "Library is not a valid ELF binary"
             echo "  $(file "$LIB_PATH")"
-            ((fail++))
+            fail=$((fail + 1))
         fi
         ;;
 esac

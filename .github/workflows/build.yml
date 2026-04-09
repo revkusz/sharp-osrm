@@ -25,12 +25,6 @@ jobs:
             artifact: sharposrm-linux-x64
             lib_name: libsharposrm.so
             lib_path: build/linux-x64/libsharposrm.so
-          - runner: macos-13
-            label: macos-x64
-            preset: macos-x64
-            artifact: sharposrm-macos-x64
-            lib_name: libsharposrm.dylib
-            lib_path: build/macos-x64/libsharposrm.dylib
           - runner: macos-15
             label: macos-arm64
             preset: macos-arm64
@@ -149,7 +143,7 @@ jobs:
           echo ""
 
           missing=0
-          for expected in sharposrm-linux-x64 sharposrm-macos-x64 sharposrm-macos-arm64 sharposrm-win-x64; do
+          for expected in sharposrm-linux-x64 sharposrm-macos-arm64 sharposrm-win-x64; do
             if [ -d "artifacts/$expected" ]; then
               echo "✅ Found: $expected"
             else
@@ -210,9 +204,8 @@ jobs:
           # download-artifact@v4 creates subdirectories per artifact name.
           # Reorganize from native-libs/sharposrm-{macos|linux}-*/{lib} to native-libs/{rid}/{lib}
           # Note: artifact names use 'macos-' but NuGet RIDs use 'osx-' (dotnet convention).
-          mkdir -p native-libs/{linux-x64,osx-x64,osx-arm64,win-x64}
+          mkdir -p native-libs/{linux-x64,osx-arm64,win-x64}
           mv native-libs/sharposrm-linux-x64/libsharposrm.so      native-libs/linux-x64/
-          mv native-libs/sharposrm-macos-x64/libsharposrm.dylib   native-libs/osx-x64/
           mv native-libs/sharposrm-macos-arm64/libsharposrm.dylib  native-libs/osx-arm64/
           mv native-libs/sharposrm-win-x64/sharposrm.dll          native-libs/win-x64/
           rm -rf native-libs/sharposrm-*
@@ -242,8 +235,8 @@ jobs:
           echo "=== Package contents ==="
           unzip -l "$NUPKG"
           echo ""
-          echo "=== Checking all 4 runtime directories ==="
-          for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
+          echo "=== Checking all 3 runtime directories ==="
+          for rid in linux-x64 osx-arm64 win-x64; do
             if unzip -l "$NUPKG" | grep -q "runtimes/$rid/native/"; then
               echo "✅ runtimes/$rid/native/ found"
             else
