@@ -9,10 +9,98 @@ on:
 
 permissions:
   contents: read
+  actions: read  # required to query workflow runs and download artifacts via API
 
 jobs:
+  # ── Check for existing artifacts ────────────────────────────────────────
+  # Looks for a prior successful run on the same commit SHA. If all three
+  # native artifacts exist, re-uploads them into this run and sets
+  # artifacts_ready=true so the build matrix is skipped entirely.
+  check-artifacts:
+    name: Check Existing Artifacts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      artifacts_ready: ${{ steps.check.outputs.artifacts_ready }}
+    steps:
+      - name: Find and reuse artifacts from prior run on this commit
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEEDED="sharposrm-linux-x64 sharposrm-macos-arm64 sharposrm-win-x64"
+
+          # Find the most recent successful run of this workflow on the same SHA,
+          # excluding the current run itself.
+          PRIOR_RUN_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&status=success&per_page=20" \
+            --jq "[.workflow_runs[] | select(.id != ${{ github.run_id }}) | .id] | first // empty")
+
+          if [ -z "$PRIOR_RUN_ID" ]; then
+            echo "No prior successful run found for ${{ github.sha }} — will build from scratch."
+            echo "artifacts_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Prior successful run: $PRIOR_RUN_ID"
+
+          # Verify every required artifact is present in that run.
+          AVAILABLE=$(gh api \
+            "repos/${{ github.repository }}/actions/runs/$PRIOR_RUN_ID/artifacts" \
+            --jq '[.artifacts[].name]')
+
+          for name in $NEEDED; do
+            if ! echo "$AVAILABLE" | grep -q "\"$name\""; then
+              echo "Artifact '$name' missing from run $PRIOR_RUN_ID — will build from scratch."
+              echo "artifacts_ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          echo "All artifacts found in run $PRIOR_RUN_ID — reusing."
+          for name in $NEEDED; do
+            gh run download "$PRIOR_RUN_ID" \
+              --name "$name" \
+              --dir "reused/$name" \
+              --repo "${{ github.repository }}"
+            echo "  Downloaded: $name"
+          done
+          echo "artifacts_ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Re-upload linux-x64
+        if: steps.check.outputs.artifacts_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharposrm-linux-x64
+          path: reused/sharposrm-linux-x64/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Re-upload macos-arm64
+        if: steps.check.outputs.artifacts_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharposrm-macos-arm64
+          path: reused/sharposrm-macos-arm64/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Re-upload win-x64
+        if: steps.check.outputs.artifacts_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharposrm-win-x64
+          path: reused/sharposrm-win-x64/
+          retention-days: 7
+          if-no-files-found: error
+
+  # ── Native builds ────────────────────────────────────────────────────────
+  # Only runs when check-artifacts did not find all artifacts for this SHA.
   build-native:
     name: Build (${{ matrix.platform.label }})
+    needs: check-artifacts
+    if: needs.check-artifacts.outputs.artifacts_ready != 'true'
     runs-on: ${{ matrix.platform.runner }}
     timeout-minutes: 90
     strategy:
@@ -123,10 +211,17 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # ── Collect ──────────────────────────────────────────────────────────────
   collect-artifacts:
     name: Collect Artifacts
     runs-on: ubuntu-24.04
-    needs: build-native
+    needs: [check-artifacts, build-native]
+    # Run when check-artifacts succeeded AND build-native either succeeded or
+    # was skipped (because check-artifacts already provided the artifacts).
+    if: |
+      always() &&
+      needs.check-artifacts.result == 'success' &&
+      (needs.build-native.result == 'success' || needs.build-native.result == 'skipped')
     timeout-minutes: 10
     steps:
       - name: Download all artifacts
@@ -159,8 +254,9 @@ jobs:
           fi
 
           echo ""
-          echo "All 4 platform artifacts present ✅"
+          echo "All 3 platform artifacts present ✅"
 
+  # ── Pack ─────────────────────────────────────────────────────────────────
   pack-nuget:
     name: Pack NuGet Package
     runs-on: ubuntu-24.04
@@ -263,6 +359,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # ── Integration test ──────────────────────────────────────────────────────
   integration-test:
     name: Integration Test
     runs-on: ubuntu-24.04
@@ -300,6 +397,7 @@ jobs:
         shell: bash
         run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"
 
+  # ── Publish ───────────────────────────────────────────────────────────────
   publish-nuget:
     name: Publish to NuGet.org
     runs-on: ubuntu-24.04
