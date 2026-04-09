@@ -38,6 +38,21 @@ public sealed class NearestParameters
     public bool SkipWaypoints { get; init; } = false;
 
     /// <summary>
+    /// Optional per-coordinate bearing constraints to limit the road segment search direction.
+    /// Each entry is a <see cref="Bearing"/> with a clockwise angle (0–359) and deviation range (0–180).
+    /// Use <c>null</c> for individual coordinates that should not have a bearing constraint.
+    /// If provided, the count must match <see cref="Coordinates"/>.
+    /// </summary>
+    public IReadOnlyList<Bearing?>? Bearings { get; init; }
+
+    /// <summary>
+    /// Optional per-coordinate hint strings for faster subsequent queries.
+    /// If provided, the count must match <see cref="Coordinates"/>.
+    /// Individual entries can be <c>null</c> for coordinates without hints.
+    /// </summary>
+    public IReadOnlyList<string?>? Hints { get; init; }
+
+    /// <summary>
     /// Converts these managed parameters to a blittable native struct for interop.
     /// </summary>
     /// <returns>
@@ -91,6 +106,49 @@ public sealed class NearestParameters
             scope.AddAllocation(radiusesPtr);
         }
 
+        // Optionally allocate bearings array (interleaved shorts: [bearing, range, bearing, range, ...])
+        IntPtr bearingsPtr = IntPtr.Zero;
+        int bearingCount = 0;
+        if (Bearings is not null && Bearings.Count > 0)
+        {
+            bearingCount = Bearings.Count;
+            int bearingBytes = bearingCount * 2 * sizeof(short);
+            bearingsPtr = Marshal.AllocHGlobal(bearingBytes);
+
+            for (int i = 0; i < bearingCount; i++)
+            {
+                var b = Bearings[i];
+                short value = b.HasValue && b.Value.Value >= 0 ? b.Value.Value : (short)-1;
+                short deviation = b.HasValue && b.Value.Value >= 0 ? b.Value.Deviation : (short)-1;
+                Marshal.WriteInt16(bearingsPtr, i * 2 * sizeof(short), value);
+                Marshal.WriteInt16(bearingsPtr, i * 2 * sizeof(short) + sizeof(short), deviation);
+            }
+
+            scope.AddAllocation(bearingsPtr);
+        }
+
+        // Optionally allocate hints array (array of pointers to null-terminated ANSI strings)
+        IntPtr hintsPtr = IntPtr.Zero;
+        int hintCount = 0;
+        if (Hints is not null && Hints.Count > 0)
+        {
+            hintCount = Hints.Count;
+            int pointerBytes = hintCount * IntPtr.Size;
+            hintsPtr = Marshal.AllocHGlobal(pointerBytes);
+
+            for (int i = 0; i < hintCount; i++)
+            {
+                IntPtr stringPtr = Hints[i] is not null
+                    ? Marshal.StringToHGlobalAnsi(Hints[i])
+                    : IntPtr.Zero;
+                Marshal.WriteIntPtr(hintsPtr, i * IntPtr.Size, stringPtr);
+                if (stringPtr != IntPtr.Zero)
+                    scope.AddAllocation(stringPtr);
+            }
+
+            scope.AddAllocation(hintsPtr);
+        }
+
         scope.Params = new NativeNearestParams
         {
             longitudes = longitudesPtr,
@@ -99,6 +157,10 @@ public sealed class NearestParameters
             number_of_results = NumberOfResults,
             radiuses = radiusesPtr,
             radius_count = radiusCount,
+            bearings = bearingsPtr,
+            bearing_count = bearingCount,
+            hints = hintsPtr,
+            hint_count = hintCount,
             generate_hints = GenerateHints ? 1 : 0,
             skip_waypoints = SkipWaypoints ? 1 : 0,
         };

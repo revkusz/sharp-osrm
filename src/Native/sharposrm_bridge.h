@@ -175,6 +175,19 @@ typedef struct SharposrmRouteParams
     const double* radiuses;                /* nullable: per-coordinate search radius in meters */
     int radius_count;                      /* number of radius values (0 if radiuses is null) */
 
+    /* Bearings: interleaved [bearing, range, bearing, range, ...] pairs as shorts.
+     * bearing_count is the number of coordinate pairs (each coordinate has 2 shorts).
+     * bearing_count == 0 means no bearings (OSRM defaults apply).
+     * Individual bearing entries can be {-1, -1} to mean "no bearing for this coordinate". */
+    const short* bearings;                 /* nullable: interleaved bearing/range pairs */
+    int bearing_count;                     /* number of bearing entries (0 if bearings is null) */
+
+    /* Hints: per-coordinate base64-encoded hint strings for faster subsequent queries.
+     * hints[i] can be nullptr for coordinates without a hint.
+     * hint_count == 0 means no hints provided. */
+    const char** hints;                    /* nullable: array of nullable hint strings */
+    int hint_count;                        /* number of hint entries (0 if hints is null) */
+
     int generate_hints;                    /* 0 or 1: add hints to response (default 1) */
     int skip_waypoints;                    /* 0 or 1: remove waypoints array from response */
 } SharposrmRouteParams;
@@ -280,6 +293,12 @@ typedef struct SharposrmTableParams
     const double* radiuses;                /* nullable: per-coordinate search radius in meters */
     int radius_count;                      /* number of radius values (0 if radiuses is null) */
 
+    const short* bearings;                 /* nullable: interleaved bearing/range pairs */
+    int bearing_count;                     /* number of bearing entries (0 if bearings is null) */
+
+    const char** hints;                    /* nullable: array of nullable hint strings */
+    int hint_count;                        /* number of hint entries (0 if hints is null) */
+
     int generate_hints;                    /* 0 or 1: add hints to response */
     int skip_waypoints;                    /* 0 or 1: remove waypoints from response */
 } SharposrmTableParams;
@@ -305,6 +324,12 @@ typedef struct SharposrmNearestParams
 
     const double* radiuses;                /* nullable: per-coordinate search radius in meters */
     int radius_count;                      /* number of radius values (0 if radiuses is null) */
+
+    const short* bearings;                 /* nullable: interleaved bearing/range pairs */
+    int bearing_count;                     /* number of bearing entries (0 if bearings is null) */
+
+    const char** hints;                    /* nullable: array of nullable hint strings */
+    int hint_count;                        /* number of hint entries (0 if hints is null) */
 
     int generate_hints;                    /* 0 or 1: add hints to response */
     int skip_waypoints;                    /* 0 or 1: remove waypoints from response */
@@ -345,6 +370,12 @@ typedef struct SharposrmTripParams
 
     const double* radiuses;
     int radius_count;
+
+    const short* bearings;                 /* nullable: interleaved bearing/range pairs */
+    int bearing_count;                     /* number of bearing entries (0 if bearings is null) */
+
+    const char** hints;                    /* nullable: array of nullable hint strings */
+    int hint_count;                        /* number of hint entries (0 if hints is null) */
 
     int generate_hints;
     int skip_waypoints;
@@ -390,6 +421,12 @@ typedef struct SharposrmMatchParams
 
     const double* radiuses;
     int radius_count;
+
+    const short* bearings;                 /* nullable: interleaved bearing/range pairs */
+    int bearing_count;                     /* number of bearing entries (0 if bearings is null) */
+
+    const char** hints;                    /* nullable: array of nullable hint strings */
+    int hint_count;                        /* number of hint entries (0 if hints is null) */
 
     int generate_hints;
     int skip_waypoints;

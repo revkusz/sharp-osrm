@@ -2,6 +2,8 @@
 
 #include <osrm/osrm.hpp>
 #include <engine/engine_config.hpp>
+#include <engine/bearing.hpp>
+#include <engine/hint.hpp>
 #include <osrm/datasets.hpp>
 #include <osrm/route_parameters.hpp>
 #include <engine/api/route_parameters.hpp>
@@ -246,6 +248,57 @@ osrm::engine::EngineConfig translate_config(const SharposrmEngineConfig* config)
 namespace
 {
 
+/* Translate bearings from interleaved short array to OSRM's vector<optional<Bearing>>.
+ * Input: bearings = [bearing0, range0, bearing1, range1, ...], 2 shorts per coordinate.
+ * bearing_count = number of coordinates (NOT number of shorts).
+ * Shorts of {-1, -1} mean "no bearing for this coordinate". */
+std::vector<std::optional<osrm::engine::Bearing>> translate_bearings(const short* bearings, int bearing_count)
+{
+    std::vector<std::optional<osrm::engine::Bearing>> result;
+    if (!bearings || bearing_count <= 0)
+        return result;
+
+    result.reserve(static_cast<size_t>(bearing_count));
+    for (int i = 0; i < bearing_count; ++i)
+    {
+        short b = bearings[i * 2];
+        short r = bearings[i * 2 + 1];
+        if (b < 0 && r < 0)
+        {
+            result.emplace_back(std::nullopt);
+        }
+        else
+        {
+            result.emplace_back(osrm::engine::Bearing{b, r});
+        }
+    }
+    return result;
+}
+
+/* Translate hints from array of nullable C strings to OSRM's vector<optional<Hint>>.
+ * Input: hints[i] can be nullptr for coordinates without a hint.
+ * Hints are base64-encoded strings that OSRM decodes via Hint::FromBase64(). */
+std::vector<std::optional<osrm::engine::Hint>> translate_hints(const char** hints, int hint_count)
+{
+    std::vector<std::optional<osrm::engine::Hint>> result;
+    if (!hints || hint_count <= 0)
+        return result;
+
+    result.reserve(static_cast<size_t>(hint_count));
+    for (int i = 0; i < hint_count; ++i)
+    {
+        if (hints[i] && hints[i][0] != '\0')
+        {
+            result.emplace_back(osrm::engine::Hint::FromBase64(hints[i]));
+        }
+        else
+        {
+            result.emplace_back(std::nullopt);
+        }
+    }
+    return result;
+}
+
 osrm::engine::api::RouteParameters translate_route_params(const SharposrmRouteParams* params)
 {
     using namespace osrm::engine::api;
@@ -348,6 +401,12 @@ osrm::engine::api::RouteParameters translate_route_params(const SharposrmRoutePa
     /* Hints and skip_waypoints */
     route_params.generate_hints = (params->generate_hints != 0);
     route_params.skip_waypoints = (params->skip_waypoints != 0);
+
+    /* Bearings */
+    route_params.bearings = translate_bearings(params->bearings, params->bearing_count);
+
+    /* Hints (input for faster snapping) */
+    route_params.hints = translate_hints(params->hints, params->hint_count);
 
     return route_params;
 }
@@ -588,6 +647,8 @@ osrm::engine::api::TableParameters translate_table_params(const SharposrmTablePa
     tp.radiuses = std::move(radiuses);
     tp.generate_hints = (params->generate_hints != 0);
     tp.skip_waypoints = (params->skip_waypoints != 0);
+    tp.bearings = translate_bearings(params->bearings, params->bearing_count);
+    tp.hints = translate_hints(params->hints, params->hint_count);
 
     /* Table-specific parameters */
     tp.sources = std::move(sources);
@@ -632,6 +693,8 @@ osrm::engine::api::NearestParameters translate_nearest_params(const SharposrmNea
     np.radiuses = std::move(radiuses);
     np.generate_hints = (params->generate_hints != 0);
     np.skip_waypoints = (params->skip_waypoints != 0);
+    np.bearings = translate_bearings(params->bearings, params->bearing_count);
+    np.hints = translate_hints(params->hints, params->hint_count);
 
     /* Nearest-specific */
     np.number_of_results = params->number_of_results;
@@ -731,6 +794,8 @@ osrm::engine::api::TripParameters translate_trip_params(const SharposrmTripParam
     tp.radiuses = std::move(radiuses);
     tp.generate_hints = (params->generate_hints != 0);
     tp.skip_waypoints = (params->skip_waypoints != 0);
+    tp.bearings = translate_bearings(params->bearings, params->bearing_count);
+    tp.hints = translate_hints(params->hints, params->hint_count);
 
     /* RouteParameters */
     tp.steps = (params->steps != 0);
@@ -848,6 +913,8 @@ osrm::engine::api::MatchParameters translate_match_params(const SharposrmMatchPa
     mp.radiuses = std::move(radiuses);
     mp.generate_hints = (params->generate_hints != 0);
     mp.skip_waypoints = (params->skip_waypoints != 0);
+    mp.bearings = translate_bearings(params->bearings, params->bearing_count);
+    mp.hints = translate_hints(params->hints, params->hint_count);
 
     /* RouteParameters */
     mp.steps = (params->steps != 0);

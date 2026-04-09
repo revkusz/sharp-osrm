@@ -36,6 +36,14 @@ internal struct NativeRouteParams
     public IntPtr radiuses;              // const double* or nullptr
     public int radius_count;             // number of radius values (0 if radiuses is null)
 
+    // --- Optional bearings (interleaved short [bearing, range] pairs, 2 shorts per coordinate) ---
+    public IntPtr bearings;              // const short* or nullptr
+    public int bearing_count;            // number of bearing entries (0 if bearings is null)
+
+    // --- Optional hints (array of nullable C string pointers for faster snapping) ---
+    public IntPtr hints;                 // const char** or nullptr
+    public int hint_count;               // number of hint entries (0 if hints is null)
+
     // --- Response options ---
     public int generate_hints;           // 0 or 1: add hints to response (default 1)
     public int skip_waypoints;           // 0 or 1: remove waypoints array from response
