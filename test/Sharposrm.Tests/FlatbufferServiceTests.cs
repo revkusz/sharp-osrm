@@ -237,3 +237,48 @@ public class FlatbufferServiceNegativeTests
         Assert.Throws<ArgumentNullException>(() => engine.MatchFlatbuffer(null!));
     }
 }
+
+/// <summary>
+/// Tests that flatbuffer error responses include the specific OSRM error code/message
+/// rather than a generic "returned an error" string.
+/// </summary>
+[Collection("MonacoDataSet")]
+public class FlatbufferErrorMessageTests
+{
+    private readonly MonacoDataFixture _fixture;
+
+    public FlatbufferErrorMessageTests(MonacoDataFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    /// <summary>
+    /// Calls RouteFlatbuffer with an engine configured to reject steps, triggering
+    /// a real OSRM Status::Error. Verifies the OsrmException.Message contains a
+    /// specific error description rather than the generic "returned an error" string.
+    /// </summary>
+    [Fact]
+    public async Task RouteFlatbuffer_OsrmError_ErrorContainsSpecificMessage()
+    {
+        var config = new EngineConfig
+        {
+            StoragePath = _fixture.ChBasePath,
+            Algorithm = Algorithm.CH,
+            DisableRouteSteps = true,
+        };
+        await using var engine = OsrmEngine.Create(config);
+
+        var parameters = new RouteParameters
+        {
+            Coordinates = new[] { (7.41337, 43.72956), (7.41546, 43.73077) },
+            Steps = true,
+        };
+
+        var ex = Assert.Throws<OsrmException>(() => engine.RouteFlatbuffer(parameters));
+
+        // The error message should contain specific OSRM error info, not a generic string
+        Assert.DoesNotContain("returned an error.", ex.Message);
+        Assert.False(string.IsNullOrWhiteSpace(ex.Message),
+            $"Expected a specific OSRM error in OsrmException.Message but got: '{ex.Message}'");
+    }
+}

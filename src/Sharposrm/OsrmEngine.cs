@@ -579,7 +579,7 @@ public sealed class OsrmEngine : IAsyncDisposable
                 NativeMethods.sharposrm_free_result(resultData);
             }
 
-            throw new OsrmException("OSRM route service returned an error.");
+            throw OsrmException.FromLastError();
         }
 
         if (resultData == IntPtr.Zero || resultLength <= 0)
@@ -650,7 +650,7 @@ public sealed class OsrmEngine : IAsyncDisposable
                 NativeMethods.sharposrm_free_result(resultData);
             }
 
-            throw new OsrmException("OSRM table service returned an error.");
+            throw OsrmException.FromLastError();
         }
 
         if (resultData == IntPtr.Zero || resultLength <= 0)
@@ -721,7 +721,7 @@ public sealed class OsrmEngine : IAsyncDisposable
                 NativeMethods.sharposrm_free_result(resultData);
             }
 
-            throw new OsrmException("OSRM nearest service returned an error.");
+            throw OsrmException.FromLastError();
         }
 
         if (resultData == IntPtr.Zero || resultLength <= 0)
@@ -792,7 +792,7 @@ public sealed class OsrmEngine : IAsyncDisposable
                 NativeMethods.sharposrm_free_result(resultData);
             }
 
-            throw new OsrmException("OSRM trip service returned an error.");
+            throw OsrmException.FromLastError();
         }
 
         if (resultData == IntPtr.Zero || resultLength <= 0)
@@ -863,7 +863,7 @@ public sealed class OsrmEngine : IAsyncDisposable
                 NativeMethods.sharposrm_free_result(resultData);
             }
 
-            throw new OsrmException("OSRM match service returned an error.");
+            throw OsrmException.FromLastError();
         }
 
         if (resultData == IntPtr.Zero || resultLength <= 0)
