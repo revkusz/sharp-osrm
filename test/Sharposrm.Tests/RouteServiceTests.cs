@@ -633,7 +633,7 @@ public class RouteServiceNegativeTests
             typeof(OsrmEngine),
             bindingAttr: BindingFlags.Instance | BindingFlags.NonPublic,
             binder: null,
-            args: new object[] { handle },
+            args: new object[] { handle, Environment.ProcessorCount },
             culture: null)!;
     }
 

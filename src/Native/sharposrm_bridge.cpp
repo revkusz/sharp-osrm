@@ -30,6 +30,7 @@
 #include <osrm/contractor.hpp>
 #include <contractor/contractor_config.hpp>
 #include <flatbuffers/flatbuffers.h>
+#include <engine/api/flatbuffers/fbresult_generated.h>
 #include <util/json_container.hpp>
 
 #include <cstdlib>
@@ -1170,6 +1171,32 @@ int call_service_fb(const char* service_name,
     }
     std::memcpy(*result_data, buf_ptr, buf_size);
     *result_length = static_cast<int>(buf_size);
+
+    if (status == osrm::Status::Error)
+    {
+        /* Parse the FBResult from the builder's buffer to extract error details.
+         * The builder is still alive in this scope, so the buffer is valid. */
+        const auto* fb_result = osrm::engine::api::fbresult::GetFBResult(buf_ptr);
+        if (fb_result && fb_result->error())
+        {
+            const auto* err = fb_result->code();
+            if (err)
+            {
+                std::string err_code = (err->code()) ? err->code()->c_str() : "Unknown";
+                std::string err_msg  = (err->message()) ? err->message()->c_str() : "";
+                set_last_error(std::string(service_name) + ": OsrmError: " + err_code +
+                               (err_msg.empty() ? std::string() : " \xe2\x80\x94 " + err_msg));
+            }
+            else
+            {
+                set_last_error(std::string(service_name) + ": OsrmError: (no error details in flatbuffer)");
+            }
+        }
+        else
+        {
+            set_last_error(std::string(service_name) + ": OsrmError: (flatbuffer error flag not set)");
+        }
+    }
 
     return (status == osrm::Status::Ok) ? 0 : 1;
 }

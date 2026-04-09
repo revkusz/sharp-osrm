@@ -110,6 +110,7 @@ if(ENABLE_CONAN)
     target_include_directories(sharposrm PRIVATE
         ${LibOSRM_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR}/osrm-backend/third_party/flatbuffers/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/osrm-backend/generated/include
     )
 
     # CXXFLAGS is a space-separated string; convert to a CMake list for compile options
