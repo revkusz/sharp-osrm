@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Sharposrm.Route;
 
 /// <summary>
@@ -16,8 +18,16 @@ public sealed class Intersection
     public List<bool>? Entry { get; set; }
 
     /// <summary>Index into <see cref="Bearings"/> for the incoming road, or null.</summary>
+    [JsonPropertyName("in")]
     public int? InIndex { get; set; }
 
     /// <summary>Index into <see cref="Bearings"/> for the outgoing road, or null.</summary>
+    [JsonPropertyName("out")]
     public int? OutIndex { get; set; }
+
+    /// <summary>Lane descriptions at this intersection.</summary>
+    public List<Lane>? Lanes { get; set; }
+
+    /// <summary>Constriction class names for this intersection.</summary>
+    public List<string>? Classes { get; set; }
 }

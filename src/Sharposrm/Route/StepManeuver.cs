@@ -20,4 +20,7 @@ public sealed class StepManeuver
 
     /// <summary>Direction modifier (e.g. "left", "right", "straight").</summary>
     public string? Modifier { get; set; }
+
+    /// <summary>Exit number for roundabout maneuvers (1-based).</summary>
+    public int? Exit { get; set; }
 }

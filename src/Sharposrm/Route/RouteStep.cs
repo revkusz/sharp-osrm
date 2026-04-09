@@ -32,4 +32,22 @@ public sealed class RouteStep
 
     /// <summary>Intersections along this step.</summary>
     public List<Intersection>? Intersections { get; set; }
+
+    /// <summary>SSML pronunciation hint for the step name.</summary>
+    public string? Pronunciation { get; set; }
+
+    /// <summary>Destinations for the step (e.g. "A1, A2").</summary>
+    public string? Destinations { get; set; }
+
+    /// <summary>Exit names for roundabout maneuvers.</summary>
+    public string? Exits { get; set; }
+
+    /// <summary>Name of the rotary (for rotary maneuvers).</summary>
+    public string? RotaryName { get; set; }
+
+    /// <summary>SSML pronunciation hint for the rotary name.</summary>
+    public string? RotaryPronunciation { get; set; }
+
+    /// <summary>Driving side: "left" or "right".</summary>
+    public string? DrivingSide { get; set; }
 }
