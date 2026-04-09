@@ -230,21 +230,23 @@ jobs:
             # and ignores the bundled copies sitting next to it.
             sudo apt-get install -y patchelf
 
-            # Grab every Conan-supplied .so from the cache directly —
-            # ldd can't find libtbbmalloc.so.2 because the proxy's own RPATH
-            # is also absolute, but the file is always next to the others.
-            TBB_DIR=$(find ~/.conan2 -name "libtbb.so.12" -type f 2>/dev/null \
-              | head -1 | xargs -I{} dirname {})
-            BZ2_DIR=$(find ~/.conan2 -name "libbz2.so.1" -type f 2>/dev/null \
-              | head -1 | xargs -I{} dirname {})
-
-            for lib in \
-              "$TBB_DIR/libtbb.so.12" \
-              "$TBB_DIR/libtbbmalloc.so.2" \
-              "$TBB_DIR/libtbbmalloc_proxy.so.2" \
-              "$BZ2_DIR/libbz2.so.1"; do
-              [ -f "$lib" ] && cp "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
+            # Use ldd to find the actual Conan library paths — this is
+            # reliable because ldd resolves the RPATH that was set at build
+            # time. Then also find libtbbmalloc.so.2 from the same TBB dir.
+            for dep in $(ldd "$LIB_PATH" | awk '/\.conan2/{print $3}'); do
+              cp "$dep" "$STAGING/" && echo "Bundled: $(basename $dep)"
             done
+
+            # libtbbmalloc.so.2 is a transitive dep of libtbbmalloc_proxy
+            # that doesn't show up in ldd (the proxy's RPATH can't resolve
+            # it). Find it next to libtbb.so.12 in the Conan cache.
+            TBB_LIB=$(find "$HOME/.conan2" -name "libtbb.so.12" -type f 2>/dev/null | head -1)
+            if [ -n "$TBB_LIB" ]; then
+              TBB_DIR=$(dirname "$TBB_LIB")
+              for lib in "$TBB_DIR/libtbbmalloc.so.2" "$TBB_DIR/libtbbmalloc_proxy.so.2"; do
+                [ -f "$lib" ] && cp "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
+              done
+            fi
 
             # Rewrite RPATH on every .so in staging to $ORIGIN so the dynamic
             # linker finds co-located deps regardless of install path.
@@ -271,10 +273,18 @@ jobs:
               [ -f "$lib" ] && cp "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
             done
 
-            # Add @loader_path as an RPATH so each dylib finds its neighbours.
+            # Add @loader_path and delete all absolute Conan RPATHs so the
+            # dylibs find each other via @loader_path regardless of install
+            # location. Just adding @loader_path isn't enough — the old
+            # absolute Conan RPATHs take priority and fail on other machines.
             for dylib in "$STAGING"/*.dylib; do
               install_name_tool -add_rpath @loader_path "$dylib" 2>/dev/null || true
-              echo "RPATH patched: $(basename $dylib)"
+              otool -l "$dylib" | grep -A2 LC_RPATH | grep "path " | awk '{print $2}' \
+                | grep -v "^@loader_path" \
+                | while read old_rpath; do
+                  install_name_tool -delete_rpath "$old_rpath" "$dylib" 2>/dev/null || true
+                done
+              echo "RPATH cleaned: $(basename $dylib)"
             done
 
           elif [ "$RUNNER_OS" == "Windows" ]; then
