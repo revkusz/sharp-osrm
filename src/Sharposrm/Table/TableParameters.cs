@@ -84,6 +84,24 @@ public sealed class TableParameters
     public IReadOnlyList<string?>? Hints { get; init; }
 
     /// <summary>
+    /// Optional per-coordinate approach type to control which side of the road to use.
+    /// <c>null</c> entries mean "not set" (OSRM default applies for that coordinate).
+    /// If provided, the count should match <see cref="Coordinates"/>.
+    /// </summary>
+    public IReadOnlyList<ApproachType?>? Approaches { get; init; }
+
+    /// <summary>
+    /// Optional list of road class names to exclude from routing (e.g. "motorway", "ferry").
+    /// </summary>
+    public IReadOnlyList<string>? Exclude { get; init; }
+
+    /// <summary>
+    /// Controls how coordinates are snapped to the road network.
+    /// Default is <see cref="SnappingType.Default"/>.
+    /// </summary>
+    public SnappingType Snapping { get; init; } = SnappingType.Default;
+
+    /// <summary>
     /// Converts these managed parameters to a blittable native struct for interop.
     /// </summary>
     /// <returns>
@@ -222,6 +240,38 @@ public sealed class TableParameters
             scope.AddAllocation(hintsPtr);
         }
 
+        // Optionally allocate approaches array (byte array, one byte per coordinate, 0xFF = not set)
+        IntPtr approachesPtr = IntPtr.Zero;
+        int approachCount = 0;
+        if (Approaches is not null && Approaches.Count > 0)
+        {
+            approachCount = Approaches.Count;
+            approachesPtr = Marshal.AllocHGlobal(approachCount);
+            for (int i = 0; i < approachCount; i++)
+            {
+                byte val = Approaches[i].HasValue ? (byte)Approaches[i]!.Value : (byte)0xFF;
+                Marshal.WriteByte(approachesPtr, i, val);
+            }
+            scope.AddAllocation(approachesPtr);
+        }
+
+        // Optionally allocate exclude array (string array — non-null entries only)
+        IntPtr excludePtr = IntPtr.Zero;
+        int excludeCount = 0;
+        if (Exclude is not null && Exclude.Count > 0)
+        {
+            excludeCount = Exclude.Count;
+            int pointerBytes = excludeCount * IntPtr.Size;
+            excludePtr = Marshal.AllocHGlobal(pointerBytes);
+            for (int i = 0; i < excludeCount; i++)
+            {
+                IntPtr stringPtr = Marshal.StringToHGlobalAnsi(Exclude[i]);
+                Marshal.WriteIntPtr(excludePtr, i * IntPtr.Size, stringPtr);
+                scope.AddAllocation(stringPtr);
+            }
+            scope.AddAllocation(excludePtr);
+        }
+
         scope.Params = new NativeTableParams
         {
             longitudes = longitudesPtr,
@@ -243,6 +293,11 @@ public sealed class TableParameters
             hint_count = hintCount,
             generate_hints = GenerateHints ? 1 : 0,
             skip_waypoints = SkipWaypoints ? 1 : 0,
+            approaches = approachesPtr,
+            approach_count = approachCount,
+            exclude = excludePtr,
+            exclude_count = excludeCount,
+            snapping = (int)Snapping,
         };
 
         return scope;

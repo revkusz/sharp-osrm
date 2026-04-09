@@ -49,4 +49,15 @@ internal struct NativeTableParams
     // --- Response options ---
     public int generate_hints;           // 0 or 1: add hints to response
     public int skip_waypoints;           // 0 or 1: remove waypoints from response
+
+    // --- Approaches (nullable byte array, one byte per coordinate, 0xFF = not set) ---
+    public IntPtr approaches;            // const char* (byte array) or IntPtr.Zero
+    public int approach_count;           // 0 if approaches is null
+
+    // --- Exclude (nullable array of road class name strings) ---
+    public IntPtr exclude;               // const char** or IntPtr.Zero
+    public int exclude_count;            // 0 if exclude is null
+
+    // --- Snapping ---
+    public int snapping;                 // SnappingType (Default=0, Any=1)
 }
