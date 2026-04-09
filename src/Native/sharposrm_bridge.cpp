@@ -2,6 +2,7 @@
 
 #include <osrm/osrm.hpp>
 #include <engine/engine_config.hpp>
+#include <engine/approach.hpp>
 #include <engine/bearing.hpp>
 #include <engine/hint.hpp>
 #include <osrm/datasets.hpp>
@@ -299,6 +300,57 @@ std::vector<std::optional<osrm::engine::Hint>> translate_hints(const char** hint
     return result;
 }
 
+/* Translate approaches from byte array to OSRM's vector<optional<Approach>>.
+ * Input: approaches = byte array, one byte per coordinate.
+ * Signed char value of -1 (0xFF) means "not set" for that coordinate.
+ * 0 = CURB, 1 = UNRESTRICTED, 2 = OPPOSITE. */
+std::vector<std::optional<osrm::engine::Approach>> translate_approaches(const char* approaches, int approach_count)
+{
+    std::vector<std::optional<osrm::engine::Approach>> result;
+    if (!approaches || approach_count <= 0)
+        return result;
+
+    result.reserve(static_cast<size_t>(approach_count));
+    for (int i = 0; i < approach_count; ++i)
+    {
+        signed char val = static_cast<signed char>(approaches[i]);
+        if (val == -1)
+        {
+            result.emplace_back(std::nullopt);
+        }
+        else
+        {
+            result.emplace_back(static_cast<osrm::engine::Approach>(val));
+        }
+    }
+    return result;
+}
+
+/* Translate exclude from C string array to vector<string>.
+ * Input: array of road class name strings (e.g. "motorway", "ferry"). */
+std::vector<std::string> translate_exclude(const char** exclude, int exclude_count)
+{
+    std::vector<std::string> result;
+    if (!exclude || exclude_count <= 0)
+        return result;
+
+    result.reserve(static_cast<size_t>(exclude_count));
+    for (int i = 0; i < exclude_count; ++i)
+    {
+        if (exclude[i])
+            result.emplace_back(exclude[i]);
+    }
+    return result;
+}
+
+/* Translate snapping int to OSRM BaseParameters::SnappingType. */
+osrm::engine::api::BaseParameters::SnappingType translate_snapping(int snapping)
+{
+    if (snapping == SHARPOSRM_SNAPPING_ANY)
+        return osrm::engine::api::BaseParameters::SnappingType::Any;
+    return osrm::engine::api::BaseParameters::SnappingType::Default;
+}
+
 osrm::engine::api::RouteParameters translate_route_params(const SharposrmRouteParams* params)
 {
     using namespace osrm::engine::api;
@@ -407,6 +459,11 @@ osrm::engine::api::RouteParameters translate_route_params(const SharposrmRoutePa
 
     /* Hints (input for faster snapping) */
     route_params.hints = translate_hints(params->hints, params->hint_count);
+
+    /* Approaches, exclude, and snapping */
+    route_params.approaches = translate_approaches(params->approaches, params->approach_count);
+    route_params.exclude = translate_exclude(params->exclude, params->exclude_count);
+    route_params.snapping = translate_snapping(params->snapping);
 
     return route_params;
 }
@@ -650,6 +707,11 @@ osrm::engine::api::TableParameters translate_table_params(const SharposrmTablePa
     tp.bearings = translate_bearings(params->bearings, params->bearing_count);
     tp.hints = translate_hints(params->hints, params->hint_count);
 
+    /* Approaches, exclude, and snapping */
+    tp.approaches = translate_approaches(params->approaches, params->approach_count);
+    tp.exclude = translate_exclude(params->exclude, params->exclude_count);
+    tp.snapping = translate_snapping(params->snapping);
+
     /* Table-specific parameters */
     tp.sources = std::move(sources);
     tp.destinations = std::move(destinations);
@@ -695,6 +757,11 @@ osrm::engine::api::NearestParameters translate_nearest_params(const SharposrmNea
     np.skip_waypoints = (params->skip_waypoints != 0);
     np.bearings = translate_bearings(params->bearings, params->bearing_count);
     np.hints = translate_hints(params->hints, params->hint_count);
+
+    /* Approaches, exclude, and snapping */
+    np.approaches = translate_approaches(params->approaches, params->approach_count);
+    np.exclude = translate_exclude(params->exclude, params->exclude_count);
+    np.snapping = translate_snapping(params->snapping);
 
     /* Nearest-specific */
     np.number_of_results = params->number_of_results;
@@ -796,6 +863,11 @@ osrm::engine::api::TripParameters translate_trip_params(const SharposrmTripParam
     tp.skip_waypoints = (params->skip_waypoints != 0);
     tp.bearings = translate_bearings(params->bearings, params->bearing_count);
     tp.hints = translate_hints(params->hints, params->hint_count);
+
+    /* Approaches, exclude, and snapping */
+    tp.approaches = translate_approaches(params->approaches, params->approach_count);
+    tp.exclude = translate_exclude(params->exclude, params->exclude_count);
+    tp.snapping = translate_snapping(params->snapping);
 
     /* RouteParameters */
     tp.steps = (params->steps != 0);
@@ -915,6 +987,11 @@ osrm::engine::api::MatchParameters translate_match_params(const SharposrmMatchPa
     mp.skip_waypoints = (params->skip_waypoints != 0);
     mp.bearings = translate_bearings(params->bearings, params->bearing_count);
     mp.hints = translate_hints(params->hints, params->hint_count);
+
+    /* Approaches, exclude, and snapping */
+    mp.approaches = translate_approaches(params->approaches, params->approach_count);
+    mp.exclude = translate_exclude(params->exclude, params->exclude_count);
+    mp.snapping = translate_snapping(params->snapping);
 
     /* RouteParameters */
     mp.steps = (params->steps != 0);

@@ -115,6 +115,21 @@ SHARPOSRM_EXPORT void sharposrm_free_string(char* s);
 
 /* ── Route service ────────────────────────────────────────────────────── */
 
+/* Approach type enum matching osrm::engine::Approach */
+typedef enum SharposrmApproachType
+{
+    SHARPOSRM_APPROACH_CURB = 0,
+    SHARPOSRM_APPROACH_UNRESTRICTED = 1,
+    SHARPOSRM_APPROACH_OPPOSITE = 2
+} SharposrmApproachType;
+
+/* Snapping type enum matching osrm::engine::api::BaseParameters::SnappingType */
+typedef enum SharposrmSnappingType
+{
+    SHARPOSRM_SNAPPING_DEFAULT = 0,
+    SHARPOSRM_SNAPPING_ANY = 1
+} SharposrmSnappingType;
+
 /* Geometries type enum matching osrm::engine::api::RouteParameters::GeometriesType */
 typedef enum SharposrmGeometriesType
 {
@@ -190,6 +205,12 @@ typedef struct SharposrmRouteParams
 
     int generate_hints;                    /* 0 or 1: add hints to response (default 1) */
     int skip_waypoints;                    /* 0 or 1: remove waypoints array from response */
+
+    const char* approaches;                /* nullable: byte array, one byte per coordinate, -1/0xFF = not set */
+    int approach_count;                    /* 0 if approaches is null */
+    const char** exclude;                  /* nullable: array of road class name strings */
+    int exclude_count;                     /* 0 if exclude is null */
+    int snapping;                          /* SharposrmSnappingType value, default 0 */
 } SharposrmRouteParams;
 
 /**
@@ -301,6 +322,12 @@ typedef struct SharposrmTableParams
 
     int generate_hints;                    /* 0 or 1: add hints to response */
     int skip_waypoints;                    /* 0 or 1: remove waypoints from response */
+
+    const char* approaches;                /* nullable: byte array, one byte per coordinate, -1/0xFF = not set */
+    int approach_count;                    /* 0 if approaches is null */
+    const char** exclude;                  /* nullable: array of road class name strings */
+    int exclude_count;                     /* 0 if exclude is null */
+    int snapping;                          /* SharposrmSnappingType value, default 0 */
 } SharposrmTableParams;
 
 SHARPOSRM_EXPORT int sharposrm_table(void* engine,
@@ -333,6 +360,12 @@ typedef struct SharposrmNearestParams
 
     int generate_hints;                    /* 0 or 1: add hints to response */
     int skip_waypoints;                    /* 0 or 1: remove waypoints from response */
+
+    const char* approaches;                /* nullable: byte array, one byte per coordinate, -1/0xFF = not set */
+    int approach_count;                    /* 0 if approaches is null */
+    const char** exclude;                  /* nullable: array of road class name strings */
+    int exclude_count;                     /* 0 if exclude is null */
+    int snapping;                          /* SharposrmSnappingType value, default 0 */
 } SharposrmNearestParams;
 
 SHARPOSRM_EXPORT int sharposrm_nearest(void* engine,
@@ -379,6 +412,12 @@ typedef struct SharposrmTripParams
 
     int generate_hints;
     int skip_waypoints;
+
+    const char* approaches;                /* nullable: byte array, one byte per coordinate, -1/0xFF = not set */
+    int approach_count;                    /* 0 if approaches is null */
+    const char** exclude;                  /* nullable: array of road class name strings */
+    int exclude_count;                     /* 0 if exclude is null */
+    int snapping;                          /* SharposrmSnappingType value, default 0 */
 
     /* ─ Trip-specific fields ─ */
     SharposrmSourceType source_type;
@@ -430,6 +469,12 @@ typedef struct SharposrmMatchParams
 
     int generate_hints;
     int skip_waypoints;
+
+    const char* approaches;                /* nullable: byte array, one byte per coordinate, -1/0xFF = not set */
+    int approach_count;                    /* 0 if approaches is null */
+    const char** exclude;                  /* nullable: array of road class name strings */
+    int exclude_count;                     /* 0 if exclude is null */
+    int snapping;                          /* SharposrmSnappingType value, default 0 */
 
     /* ─ Match-specific fields ─ */
     const unsigned int* timestamps;        /* nullable: per-coordinate Unix timestamps */
