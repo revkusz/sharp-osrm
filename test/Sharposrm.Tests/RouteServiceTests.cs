@@ -540,6 +540,58 @@ public class RouteServicePositiveTests
     }
 
     [Fact]
+    public async Task RouteWithSteps_NewFieldsDeserialize()
+    {
+        var config = CreateMonacoConfig();
+        await using var engine = OsrmEngine.Create(config);
+
+        var parameters = new RouteParameters
+        {
+            Coordinates = MonacoCoordinates,
+            Steps = true,
+        };
+
+        var response = engine.Route(parameters);
+        Assert.Equal("Ok", response.Code);
+
+        var steps = response.Routes![0].Legs![0].Steps!;
+        Assert.True(steps.Count >= 2, "Expected at least 2 steps.");
+
+        // DrivingSide should always be present ("right" for Monaco)
+        foreach (var step in steps)
+        {
+            Assert.Equal("right", step.DrivingSide);
+        }
+
+        // InIndex/OutIndex should deserialize via [JsonPropertyName("in"/"out")]
+        // On non-departure/non-arrival intersections, InIndex and OutIndex should be non-null
+        var middleStep = steps.FirstOrDefault(s =>
+            s.Maneuver?.Type != "depart" && s.Maneuver?.Type != "arrive");
+        if (middleStep is not null)
+        {
+            var intersections = middleStep.Intersections;
+            Assert.NotNull(intersections);
+            // At least the first intersection in a middle step should have InIndex/OutIndex
+            var nonEntryIntersection = intersections.FirstOrDefault(i => i.InIndex.HasValue);
+            Assert.True(nonEntryIntersection is not null,
+                "Expected at least one intersection with a non-null InIndex (via [JsonPropertyName(\"in\")]).");
+        }
+
+        // Lanes and Classes properties should not cause deserialization errors
+        // (they may be null on simple intersections — just verify the properties are accessible)
+        foreach (var step in steps)
+        {
+            if (step.Intersections is null) continue;
+            foreach (var intersection in step.Intersections)
+            {
+                // Access the properties to ensure they deserialized without error
+                _ = intersection.Lanes;
+                _ = intersection.Classes;
+            }
+        }
+    }
+
+    [Fact]
     public async Task RouteWithoutWaypoints_AllCoordinatesAreStops()
     {
         var config = CreateMonacoConfig();
