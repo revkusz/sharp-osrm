@@ -211,6 +211,9 @@ typedef struct SharposrmRouteParams
     const char** exclude;                  /* nullable: array of road class name strings */
     int exclude_count;                     /* 0 if exclude is null */
     int snapping;                          /* SharposrmSnappingType value, default 0 */
+
+    const size_t* waypoints;               /* nullable array of waypoint indices */
+    int waypoint_count;                    /* 0 if waypoints is null */
 } SharposrmRouteParams;
 
 /**

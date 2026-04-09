@@ -465,6 +465,16 @@ osrm::engine::api::RouteParameters translate_route_params(const SharposrmRoutePa
     route_params.exclude = translate_exclude(params->exclude, params->exclude_count);
     route_params.snapping = translate_snapping(params->snapping);
 
+    /* Waypoints — indices of actual stop coordinates */
+    if (params->waypoints && params->waypoint_count > 0)
+    {
+        route_params.waypoints.reserve(static_cast<size_t>(params->waypoint_count));
+        for (int i = 0; i < params->waypoint_count; ++i)
+        {
+            route_params.waypoints.push_back(params->waypoints[i]);
+        }
+    }
+
     return route_params;
 }
 

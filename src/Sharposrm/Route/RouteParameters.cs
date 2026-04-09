@@ -110,6 +110,14 @@ public sealed class RouteParameters
     public SnappingType Snapping { get; init; } = SnappingType.Default;
 
     /// <summary>
+    /// Optional indices of coordinates that are actual stops (waypoints).
+    /// Coordinates not in this list become pass-through points.
+    /// <c>null</c> means all coordinates are waypoints (default OSRM behavior).
+    /// Each index must be less than the number of coordinates.
+    /// </summary>
+    public IReadOnlyList<int>? Waypoints { get; init; }
+
+    /// <summary>
     /// Converts these managed parameters to a blittable native struct for interop.
     /// Coordinate arrays are copied into unmanaged memory via <c>Marshal.AllocHGlobal</c>.
     /// <para>
@@ -253,6 +261,22 @@ public sealed class RouteParameters
             scope.AddAllocation(excludePtr);
         }
 
+        // Optionally allocate waypoints array (indices of actual stop coordinates)
+        IntPtr waypointsPtr = IntPtr.Zero;
+        int waypointCount = 0;
+        if (Waypoints is not null && Waypoints.Count > 0)
+        {
+            waypointCount = Waypoints.Count;
+            waypointsPtr = Marshal.AllocHGlobal(waypointCount * sizeof(int));
+
+            for (int i = 0; i < waypointCount; i++)
+            {
+                Marshal.WriteInt32(waypointsPtr, i * sizeof(int), Waypoints[i]);
+            }
+
+            scope.AddAllocation(waypointsPtr);
+        }
+
         scope.Params = new NativeRouteParams
         {
             longitudes = longitudesPtr,
@@ -279,6 +303,8 @@ public sealed class RouteParameters
             exclude = excludePtr,
             exclude_count = excludeCount,
             snapping = (int)Snapping,
+            waypoints = waypointsPtr,
+            waypoint_count = waypointCount,
         };
 
         return scope;

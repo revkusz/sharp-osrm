@@ -58,4 +58,8 @@ internal struct NativeRouteParams
 
     // --- Snapping ---
     public int snapping;                 // SnappingType (Default=0, Any=1)
+
+    // --- Waypoints (nullable array of waypoint indices for marking stops vs pass-through) ---
+    public IntPtr waypoints;             // const size_t* or IntPtr.Zero — nullable waypoint indices
+    public int waypoint_count;           // 0 if waypoints is null
 }

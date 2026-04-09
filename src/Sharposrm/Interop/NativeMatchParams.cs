@@ -72,4 +72,8 @@ internal struct NativeMatchParams
 
     public int gaps;                     // GapsType (Split=0, Ignore=1)
     public int tidy;                     // 0 or 1: tidy input coordinates
+
+    // --- Waypoints (nullable array of waypoint indices for marking stops vs pass-through) ---
+    public IntPtr waypoints;             // const size_t* or IntPtr.Zero — nullable waypoint indices
+    public int waypoint_count;           // 0 if waypoints is null
 }
