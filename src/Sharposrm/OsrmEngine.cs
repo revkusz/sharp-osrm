@@ -18,6 +18,7 @@ namespace Sharposrm;
 public sealed class OsrmEngine : IAsyncDisposable
 {
     private readonly OsrmHandle _handle;
+    private readonly SemaphoreSlim _concurrencySemaphore;
     private volatile bool _disposed;
 
     /// <summary>
@@ -42,9 +43,10 @@ public sealed class OsrmEngine : IAsyncDisposable
     /// Private constructor. Use <see cref="Create"/> or <see cref="CreateAsync"/>
     /// factory methods to create instances.
     /// </summary>
-    private OsrmEngine(OsrmHandle handle)
+    private OsrmEngine(OsrmHandle handle, int maxConcurrency)
     {
         _handle = handle ?? throw new ArgumentNullException(nameof(handle));
+        _concurrencySemaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
     }
 
     /// <summary>
@@ -60,6 +62,14 @@ public sealed class OsrmEngine : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        if (config.MaxConcurrency < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(config.MaxConcurrency),
+                config.MaxConcurrency,
+                "MaxConcurrency must be at least 1.");
+        }
+
         // ToNativeConfig validates StoragePath and allocates native strings
         using var nativeScope = config.ToNativeConfig();
         var nativeConfig = nativeScope.Config;
@@ -73,7 +83,7 @@ public sealed class OsrmEngine : IAsyncDisposable
             throw OsrmException.FromLastError();
         }
 
-        return new OsrmEngine(new OsrmHandle(handlePtr));
+        return new OsrmEngine(new OsrmHandle(handlePtr), config.MaxConcurrency);
     }
 
     /// <summary>
@@ -92,6 +102,37 @@ public sealed class OsrmEngine : IAsyncDisposable
         ct.ThrowIfCancellationRequested();
 
         return Task.Run(() => Create(config), ct);
+    }
+
+    /// <summary>
+    /// Executes an async service call through the concurrency semaphore with
+    /// cooperative cancellation checks at entry, post-acquire, and post-call points.
+    /// </summary>
+    /// <typeparam name="T">Return type of the service call.</typeparam>
+    /// <param name="syncCall">The synchronous native call to execute.</param>
+    /// <param name="ct">Cancellation token propagated from the public method.</param>
+    private async Task<T> ExecuteAsync<T>(Func<T> syncCall, CancellationToken ct)
+    {
+        // Fail-fast: if engine is disposed, don't wait on semaphore
+        _ = Handle;
+
+        await _concurrencySemaphore.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            // Post-acquire check: cancellation may have been requested while waiting
+            ct.ThrowIfCancellationRequested();
+
+            var result = syncCall();
+
+            // Post-call check: allow caller to bail out after a long native call
+            ct.ThrowIfCancellationRequested();
+
+            return result;
+        }
+        finally
+        {
+            _concurrencySemaphore.Release();
+        }
     }
 
     /// <summary>
@@ -187,9 +228,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        // Capture a local copy for the closure to avoid mutable capture
-        var paramsCopy = parameters;
-        return Task.Run(() => Route(paramsCopy), ct);
+        return ExecuteAsync(() => Route(parameters), ct);
     }
 
     /// <summary>
@@ -268,8 +307,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => Table(paramsCopy), ct);
+        return ExecuteAsync(() => Table(parameters), ct);
     }
 
     /// <summary>
@@ -348,8 +386,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => Nearest(paramsCopy), ct);
+        return ExecuteAsync(() => Nearest(parameters), ct);
     }
 
     /// <summary>
@@ -428,8 +465,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => Trip(paramsCopy), ct);
+        return ExecuteAsync(() => Trip(parameters), ct);
     }
 
     /// <summary>
@@ -510,8 +546,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => Match(paramsCopy), ct);
+        return ExecuteAsync(() => Match(parameters), ct);
     }
 
     /// <summary>
@@ -582,8 +617,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => RouteFlatbuffer(paramsCopy), ct);
+        return ExecuteAsync(() => RouteFlatbuffer(parameters), ct);
     }
 
     /// <summary>
@@ -654,8 +688,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => TableFlatbuffer(paramsCopy), ct);
+        return ExecuteAsync(() => TableFlatbuffer(parameters), ct);
     }
 
     /// <summary>
@@ -726,8 +759,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => NearestFlatbuffer(paramsCopy), ct);
+        return ExecuteAsync(() => NearestFlatbuffer(parameters), ct);
     }
 
     /// <summary>
@@ -798,8 +830,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => TripFlatbuffer(paramsCopy), ct);
+        return ExecuteAsync(() => TripFlatbuffer(parameters), ct);
     }
 
     /// <summary>
@@ -870,8 +901,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => MatchFlatbuffer(paramsCopy), ct);
+        return ExecuteAsync(() => MatchFlatbuffer(parameters), ct);
     }
 
     /// <summary>
@@ -943,8 +973,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         ct.ThrowIfCancellationRequested();
 
-        var paramsCopy = parameters;
-        return Task.Run(() => Tile(paramsCopy), ct);
+        return ExecuteAsync(() => Tile(parameters), ct);
     }
 
     /// <summary>
@@ -956,6 +985,7 @@ public sealed class OsrmEngine : IAsyncDisposable
         if (_disposed) return ValueTask.CompletedTask;
 
         _disposed = true;
+        _concurrencySemaphore.Dispose();
         _handle.Dispose();
         return ValueTask.CompletedTask;
     }

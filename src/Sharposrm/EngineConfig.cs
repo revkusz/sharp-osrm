@@ -68,6 +68,13 @@ public class EngineConfig
     /// <summary>Maximum number of alternative routes. Default is 3.</summary>
     public int MaxAlternatives { get; set; } = 3;
 
+    /// <summary>
+    /// Maximum number of concurrent OSRM service calls allowed through the engine.
+    /// Defaults to <see cref="Environment.ProcessorCount"/>.
+    /// Values below 1 are rejected at engine creation time.
+    /// </summary>
+    public int MaxConcurrency { get; set; } = Environment.ProcessorCount;
+
     // --- Feature dataset toggles ---
 
     /// <summary>
