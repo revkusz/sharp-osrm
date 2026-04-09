@@ -6,13 +6,34 @@
     <RootNamespace>Sharposrm</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>Sharposrm</PackageId>
+    <Description>.NET wrapper for OSRM (Open Source Routing Machine) — native C interop for high-performance routing</Description>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageTags>osrm;routing;navigation;geospatial</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Sharposrm.Tests" />
+  </ItemGroup>
+
+  <!-- Native libraries for NuGet package (activated when NativeLibsDir is set in CI) -->
+  <ItemGroup Condition="'$(NativeLibsDir)' != ''">
+    <None Include="$(NativeLibsDir)linux-x64/libsharposrm.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+    <None Include="$(NativeLibsDir)osx-x64/libsharposrm.dylib" Pack="true" PackagePath="runtimes/osx-x64/native/" />
+    <None Include="$(NativeLibsDir)osx-arm64/libsharposrm.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+    <None Include="$(NativeLibsDir)win-x64/sharposrm.dll" Pack="true" PackagePath="runtimes/win-x64/native/" />
+  </ItemGroup>
+
+  <!-- Pack license and notices into the NuGet package (files are at repo root) -->
+  <PropertyGroup>
+    <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))</RepoRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(RepoRoot)/LICENSE" Pack="true" PackagePath="" />
+    <None Include="$(RepoRoot)/THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
   </ItemGroup>
 
 </Project>
