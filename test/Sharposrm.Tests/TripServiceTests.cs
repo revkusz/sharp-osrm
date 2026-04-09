@@ -113,7 +113,7 @@ public class TripServicePositiveTests
         Assert.NotEmpty(response.Trips);
         foreach (var trip in response.Trips!)
         {
-            Assert.False(string.IsNullOrEmpty(trip.Geometry),
+            Assert.False(string.IsNullOrEmpty(trip.Geometry?.Polyline),
                 "Each trip should have a geometry string.");
         }
     }
@@ -332,7 +332,7 @@ public class TripServicePositiveTests
         Assert.NotNull(response.Trips);
         Assert.Single(response.Trips!);
         Assert.True(response.Trips[0].Distance > 0);
-        Assert.False(string.IsNullOrEmpty(response.Trips[0].Geometry));
+        Assert.False(string.IsNullOrEmpty(response.Trips[0].Geometry?.Polyline));
     }
 
     [Fact]

@@ -18,8 +18,9 @@ public sealed class Route
     /// <summary>Name of the weight profile used (e.g. "duration", "routability").</summary>
     public string? WeightName { get; set; }
 
-    /// <summary>Encoded geometry (format depends on the geometries parameter).</summary>
-    public string? Geometry { get; set; }
+    /// <summary>Route geometry. Format depends on the geometries parameter:
+    /// polyline string for Polyline/Polyline6, GeoJSON object for GeoJSON.</summary>
+    public RouteGeometry? Geometry { get; set; }
 
     /// <summary>The legs between waypoints.</summary>
     public List<RouteLeg>? Legs { get; set; }

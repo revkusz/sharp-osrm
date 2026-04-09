@@ -164,7 +164,7 @@ public class RouteServicePositiveTests
 
         Assert.Equal("Ok", response.Code);
         var route = response.Routes![0];
-        Assert.False(string.IsNullOrEmpty(route.Geometry),
+        Assert.False(string.IsNullOrEmpty(route.Geometry?.Polyline),
             "Polyline geometry should be a non-empty encoded string.");
     }
 
@@ -172,9 +172,7 @@ public class RouteServicePositiveTests
     public async Task Route_GeojsonGeometry_Succeeds()
     {
         // When geometries=GeoJSON, OSRM returns geometry as a JSON object
-        // rather than an encoded string. Our C# model types Geometry as string?,
-        // so the geometry field will not populate. We verify the response itself
-        // succeeds and the route has valid distance/duration.
+        // rather than an encoded string. RouteGeometry handles both formats.
         var config = CreateMonacoConfig();
         await using var engine = OsrmEngine.Create(config);
 
@@ -184,22 +182,19 @@ public class RouteServicePositiveTests
             Geometries = GeometriesType.GeoJSON,
         };
 
-        // The JSON deserializer may or may not throw depending on how it handles
-        // a JSON object being assigned to a string property. We accept either a
-        // successful response (geometry null/empty) or a clean JsonException.
-        try
-        {
-            var response = engine.Route(parameters);
-            Assert.Equal("Ok", response.Code);
-            Assert.NotNull(response.Routes);
-            Assert.NotEmpty(response.Routes);
-            Assert.True(response.Routes[0].Distance > 0);
-        }
-        catch (JsonException)
-        {
-            // Expected: GeoJSON geometry objects cannot deserialize into string?.
-            // This is a known limitation of the current response model.
-        }
+        var response = engine.Route(parameters);
+        Assert.Equal("Ok", response.Code);
+        Assert.NotNull(response.Routes);
+        Assert.NotEmpty(response.Routes);
+        Assert.True(response.Routes[0].Distance > 0);
+
+        // Geometry should be parsed as GeoJSON, not left null
+        var geometry = response.Routes[0].Geometry;
+        Assert.NotNull(geometry);
+        Assert.True(geometry.IsGeoJson);
+        Assert.NotNull(geometry.GeoJson);
+        Assert.Equal("LineString", geometry.GeoJson.Type);
+        Assert.NotEmpty(geometry.GeoJson.Coordinates);
     }
 
     [Fact]
@@ -222,15 +217,14 @@ public class RouteServicePositiveTests
         var route = response.Routes![0];
 
         // overview=false means no top-level geometry
-        Assert.True(string.IsNullOrEmpty(route.Geometry),
-            "With overview=false, top-level geometry should be absent.");
+        Assert.Null(route.Geometry);
 
         // But step geometries should be present and non-empty strings
         var steps = route.Legs![0].Steps!;
         Assert.True(steps.Count > 0, "Expected at least one step.");
         foreach (var step in steps)
         {
-            Assert.False(string.IsNullOrEmpty(step.Geometry),
+            Assert.False(string.IsNullOrEmpty(step.Geometry?.Polyline),
                 $"Step geometry should be a non-empty Polyline6 string, but was null/empty for step '{step.Name}'.");
         }
     }
@@ -365,11 +359,13 @@ public class RouteServicePositiveTests
         var fullGeom = fullResponse.Routes![0].Geometry;
         var simplifiedGeom = simplifiedResponse.Routes![0].Geometry;
 
-        Assert.False(string.IsNullOrEmpty(fullGeom), "Full overview should have geometry.");
-        Assert.False(string.IsNullOrEmpty(simplifiedGeom), "Simplified overview should have geometry.");
+        Assert.NotNull(fullGeom);
+        Assert.NotNull(simplifiedGeom);
+        Assert.False(string.IsNullOrEmpty(fullGeom.Polyline), "Full overview should have geometry.");
+        Assert.False(string.IsNullOrEmpty(simplifiedGeom.Polyline), "Simplified overview should have geometry.");
 
         // Full geometry encodes more detail, so it should be longer (or at least different)
-        Assert.NotEqual(fullGeom, simplifiedGeom);
+        Assert.NotEqual(fullGeom.Polyline, simplifiedGeom.Polyline);
     }
 
     // ── Alternatives tests ───────────────────────────────────────────

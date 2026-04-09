@@ -192,7 +192,7 @@ public class MatchServicePositiveTests
         Assert.Equal("Ok", response.Code);
         Assert.NotNull(response.Matchings);
         Assert.NotEmpty(response.Matchings);
-        Assert.False(string.IsNullOrEmpty(response.Matchings![0].Geometry),
+        Assert.False(string.IsNullOrEmpty(response.Matchings![0].Geometry?.Polyline),
             "Matching should have a polyline geometry string.");
     }
 

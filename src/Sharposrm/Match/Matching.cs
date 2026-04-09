@@ -27,8 +27,8 @@ public sealed class Matching
     /// <summary>Name of the weight profile used (e.g. "duration", "routability").</summary>
     public string? WeightName { get; set; }
 
-    /// <summary>Encoded geometry of the matching (format depends on geometries parameter).</summary>
-    public string? Geometry { get; set; }
+    /// <summary>Route geometry of the matching. Format depends on geometries parameter.</summary>
+    public RouteGeometry? Geometry { get; set; }
 
     /// <summary>The legs comprising this matching. Same structure as route legs.</summary>
     public List<RouteLeg>? Legs { get; set; }

@@ -24,8 +24,8 @@ public sealed class RouteStep
     /// <summary>Mode of transport (e.g. "driving", "ferry").</summary>
     public string? Mode { get; set; }
 
-    /// <summary>Encoded geometry for this step.</summary>
-    public string? Geometry { get; set; }
+    /// <summary>Route geometry for this step. Format depends on the geometries parameter.</summary>
+    public RouteGeometry? Geometry { get; set; }
 
     /// <summary>The maneuver instruction for this step.</summary>
     public StepManeuver? Maneuver { get; set; }
