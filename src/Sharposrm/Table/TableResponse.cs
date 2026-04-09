@@ -44,4 +44,9 @@ public sealed class TableResponse
     /// </summary>
     [JsonPropertyName("fallback_speed_cells")]
     public List<int>? FallbackSpeedCells { get; set; }
+
+    /// <summary>
+    /// Version of the OSM data used to compute the response (e.g. "20240101").
+    /// </summary>
+    public string? DataVersion { get; set; }
 }

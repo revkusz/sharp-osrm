@@ -42,4 +42,9 @@ public sealed class RouteResponse
     /// </summary>
     [JsonPropertyName("waypoints")]
     public List<Waypoint>? Waypoints { get; set; }
+
+    /// <summary>
+    /// Version of the OSM data used to compute the response (e.g. "20240101").
+    /// </summary>
+    public string? DataVersion { get; set; }
 }

@@ -23,4 +23,9 @@ public sealed class LegAnnotation
 
     /// <summary>OSM node IDs for each segment endpoint.</summary>
     public List<long>? Nodes { get; set; }
+
+    /// <summary>
+    /// Metadata describing the datasources referenced by <see cref="Datasources"/>.
+    /// </summary>
+    public AnnotationMetadata? Metadata { get; set; }
 }
