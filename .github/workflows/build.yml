@@ -57,10 +57,11 @@ jobs:
           python3 -m venv .venv
           if [ "$RUNNER_OS" == "Windows" ]; then
             source .venv/Scripts/activate
+            python3 -m pip install --upgrade pip conan
           else
             source .venv/bin/activate
+            pip install --upgrade pip conan
           fi
-          pip install --upgrade pip conan
 
       - name: Detect Conan profile
         shell: bash

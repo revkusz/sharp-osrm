@@ -10,8 +10,8 @@
             "installDir": "${sourceDir}/install/${presetName}",
             "condition": {
                 "type": "equals",
-                "lhs": "${hostSystemProcessor}",
-                "rhs": "arm64"
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
             },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
