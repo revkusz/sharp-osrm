@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
+    <PackageReference Include="xunit" Version="2.*" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.*" />
+  </ItemGroup>
+
+  <!--
+    Sharposrm is consumed via PackageReference (not ProjectReference) to prove
+    the NuGet package works end-to-end. CI configures a local NuGet source
+    pointing at the packed .nupkg before running these tests.
+    
+    For local development, create a NuGet.Config with a local source pointing
+    to your packed .nupkg, or run: dotnet pack src/Sharposrm first.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Sharposrm" Version="0.2.0" />
+  </ItemGroup>
+
+</Project>

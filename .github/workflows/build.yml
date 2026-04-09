@@ -1,0 +1,287 @@
+name: Build Native Library
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-native:
+    name: Build (${{ matrix.platform.label }})
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-24.04
+            label: linux-x64
+            preset: linux-x64
+            artifact: sharposrm-linux-x64
+            lib_name: libsharposrm.so
+            lib_path: build/linux-x64/libsharposrm.so
+          - runner: macos-13
+            label: macos-x64
+            preset: macos-x64
+            artifact: sharposrm-macos-x64
+            lib_name: libsharposrm.dylib
+            lib_path: build/macos-x64/libsharposrm.dylib
+          - runner: macos-15
+            label: macos-arm64
+            preset: macos-arm64
+            artifact: sharposrm-macos-arm64
+            lib_name: libsharposrm.dylib
+            lib_path: build/macos-arm64/libsharposrm.dylib
+          - runner: windows-2025
+            label: win-x64
+            preset: win-x64
+            artifact: sharposrm-win-x64
+            lib_name: sharposrm.dll
+            lib_path: build/win-x64/Release/sharposrm.dll
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Conan 2.x
+        shell: bash
+        run: |
+          python3 -m venv .venv
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          pip install --upgrade pip conan
+
+      - name: Detect Conan profile
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          conan profile detect --force
+
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-${{ matrix.platform.label }}-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            conan-${{ matrix.platform.label }}-
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Install build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Add Conan to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: echo "${{ github.workspace }}\.venv\Scripts" >> $env:GITHUB_PATH
+
+      - name: Configure CMake
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          cmake --preset ${{ matrix.platform.preset }}
+
+      - name: Build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            source .venv/Scripts/activate
+            cmake --build --preset ${{ matrix.platform.preset }} --config Release
+          else
+            source .venv/bin/activate
+            cmake --build --preset ${{ matrix.platform.preset }}
+          fi
+
+      - name: Verify build
+        shell: bash
+        run: bash scripts/verify-build.sh ${{ matrix.platform.lib_path }}
+
+      - name: Upload native library
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact }}
+          path: ${{ matrix.platform.lib_path }}
+          retention-days: 7
+          if-no-files-found: error
+
+  collect-artifacts:
+    name: Collect Artifacts
+    runs-on: ubuntu-24.04
+    needs: build-native
+    timeout-minutes: 10
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Verify all platform artifacts present
+        shell: bash
+        run: |
+          echo "=== Downloaded artifacts ==="
+          ls -R artifacts/
+          echo ""
+
+          missing=0
+          for expected in sharposrm-linux-x64 sharposrm-macos-x64 sharposrm-macos-arm64 sharposrm-win-x64; do
+            if [ -d "artifacts/$expected" ]; then
+              echo "✅ Found: $expected"
+            else
+              echo "❌ Missing: $expected"
+              missing=$((missing + 1))
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "ERROR: $missing artifact(s) missing!"
+            exit 1
+          fi
+
+          echo ""
+          echo "All 4 platform artifacts present ✅"
+
+  pack-nuget:
+    name: Pack NuGet Package
+    runs-on: ubuntu-24.04
+    needs: [collect-artifacts]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download all native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: native-libs
+          merge-multiple: false
+
+      - name: Organize native libraries by RID
+        shell: bash
+        run: |
+          # download-artifact@v4 creates subdirectories per artifact name.
+          # Reorganize from native-libs/sharposrm-{macos|linux}-*/{lib} to native-libs/{rid}/{lib}
+          # Note: artifact names use 'macos-' but NuGet RIDs use 'osx-' (dotnet convention).
+          mkdir -p native-libs/{linux-x64,osx-x64,osx-arm64,win-x64}
+          mv native-libs/sharposrm-linux-x64/libsharposrm.so     native-libs/linux-x64/
+          mv native-libs/sharposrm-macos-x64/libsharposrm.dylib  native-libs/osx-x64/
+          mv native-libs/sharposrm-macos-arm64/libsharposrm.dylib native-libs/osx-arm64/
+          mv native-libs/sharposrm-win-x64/sharposrm.dll         native-libs/win-x64/
+          rm -rf native-libs/sharposrm-*
+          echo "=== Native library layout ==="
+          find native-libs -type f | sort
+
+      - name: Pack NuGet package
+        shell: bash
+        run: dotnet pack src/Sharposrm/Sharposrm.csproj -c Release -p:NativeLibsDir=native-libs/ -o nupkg-output/
+
+      - name: Validate package structure
+        shell: bash
+        run: |
+          NUPKG="nupkg-output/Sharposrm.0.2.0.nupkg"
+          if [ ! -f "$NUPKG" ]; then
+            echo "ERROR: $NUPKG not found!"
+            ls -R nupkg-output/
+            exit 1
+          fi
+          echo "Found package: $NUPKG"
+          echo ""
+          echo "=== Package contents ==="
+          unzip -l "$NUPKG"
+          echo ""
+          echo "=== Checking all 4 runtime directories ==="
+          for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
+            if unzip -l "$NUPKG" | grep -q "runtimes/$rid/native/"; then
+              echo "✅ runtimes/$rid/native/ found"
+            else
+              echo "❌ runtimes/$rid/native/ MISSING"
+              exit 1
+            fi
+          done
+          echo ""
+          echo "=== Checking metadata files ==="
+          for file in LICENSE THIRD-PARTY-NOTICES.txt; do
+            if unzip -l "$NUPKG" | grep -q "$file"; then
+              echo "✅ $file found"
+            else
+              echo "❌ $file MISSING"
+              exit 1
+            fi
+          done
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: sharposrm-nupkg
+          path: nupkg-output/Sharposrm.0.2.0.nupkg
+          retention-days: 7
+          if-no-files-found: error
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-24.04
+    needs: [pack-nuget]
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      NUGET_CERT_REVOCATION_MODE: offline
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download NuGet package
+        uses: actions/download-artifact@v4
+        with:
+          name: sharposrm-nupkg
+          path: nupkg-local
+
+      - name: Configure local NuGet source
+        shell: bash
+        run: |
+          dotnet nuget add source "$(pwd)/nupkg-local" \
+            --name local-nupkg \
+            --store-password-in-clear-text
+
+      - name: Run integration tests
+        shell: bash
+        run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"

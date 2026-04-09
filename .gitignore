@@ -2,6 +2,11 @@
 bin/
 obj/
 build/
+build-*/
+nupkg-output/
+
+## CMake / Conan generated
+CMakeUserPresets.json
 
 ## OSRM test data (generated at runtime)
 # osrm-backend/ is now a git submodule — no longer ignored
