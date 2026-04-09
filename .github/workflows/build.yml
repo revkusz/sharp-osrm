@@ -206,42 +206,72 @@ jobs:
       - name: Collect runtime dependencies
         shell: bash
         run: |
-          # Copy the main library and its Conan-built shared dependencies into
-          # a single staging directory so they all land in runtimes/{rid}/native/
-          # in the NuGet package. Without this, the integration test runner has
-          # no Conan cache and DllNotFoundException fires on libtbb / libbz2.
+          # Copy the main library and ALL Conan-built shared dependencies into
+          # a staging directory. They must all be present in runtimes/{rid}/native/
+          # in the NuGet package — the integration test runner has no Conan cache.
           STAGING="staging/${{ matrix.platform.artifact }}"
           mkdir -p "$STAGING"
-
           LIB_PATH="${{ matrix.platform.lib_path }}"
           cp "$LIB_PATH" "$STAGING/"
 
           if [ "$RUNNER_OS" == "Linux" ]; then
-            # Collect every non-system shared dependency (i.e. those resolved
-            # from the Conan cache) by reading ldd output.
-            ldd "$LIB_PATH" | awk '/\.conan2/{print $3}' | while read dep; do
-              [ -f "$dep" ] && cp "$dep" "$STAGING/" && echo "Bundled: $(basename $dep)"
+            # Install patchelf to rewrite the RPATH embedded in the .so.
+            # Without this the linker follows the absolute Conan cache path
+            # and ignores the bundled copies sitting next to it.
+            sudo apt-get install -y patchelf
+
+            # Grab every Conan-supplied .so from the cache directly —
+            # ldd can't find libtbbmalloc.so.2 because the proxy's own RPATH
+            # is also absolute, but the file is always next to the others.
+            TBB_DIR=$(find ~/.conan2 -name "libtbb.so.12" -type f 2>/dev/null \
+              | head -1 | xargs -I{} dirname {})
+            BZ2_DIR=$(find ~/.conan2 -name "libbz2.so.1" -type f 2>/dev/null \
+              | head -1 | xargs -I{} dirname {})
+
+            for lib in \
+              "$TBB_DIR/libtbb.so.12" \
+              "$TBB_DIR/libtbbmalloc.so.2" \
+              "$TBB_DIR/libtbbmalloc_proxy.so.2" \
+              "$BZ2_DIR/libbz2.so.1"; do
+              [ -f "$lib" ] && cp "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
             done
+
+            # Rewrite RPATH on every .so in staging to $ORIGIN so the dynamic
+            # linker finds co-located deps regardless of install path.
+            for so in "$STAGING"/*.so*; do
+              patchelf --set-rpath '$ORIGIN' "$so" 2>/dev/null && \
+                echo "RPATH patched: $(basename $so)"
+            done
+
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            # otool -L lists all dylib links; collect those living in ~/.conan2
-            otool -L "$LIB_PATH" | awk '/\.conan2/{print $1}' | while read dep; do
-              [ -f "$dep" ] && cp "$dep" "$STAGING/" && echo "Bundled: $(basename $dep)"
+            # On macOS dylibs use @rpath, which gets resolved via LC_RPATH
+            # entries embedded in the binary. The Conan-installed libraries
+            # live under ~/.conan2; find them by the known names.
+            CONAN2="$HOME/.conan2"
+            TBB_DIR=$(find "$CONAN2" -name "libtbb.12.dylib" -type f 2>/dev/null \
+              | head -1 | xargs -I{} dirname {})
+            BZ2_DIR=$(find "$CONAN2" -name "libbz2.1.dylib" -type f 2>/dev/null \
+              | head -1 | xargs -I{} dirname {})
+
+            for lib in \
+              "$TBB_DIR/libtbb.12.dylib" \
+              "$TBB_DIR/libtbbmalloc.2.dylib" \
+              "$TBB_DIR/libtbbmalloc_proxy.2.dylib" \
+              "$BZ2_DIR/libbz2.1.dylib"; do
+              [ -f "$lib" ] && cp "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
             done
-            # Rewrite @rpath/* references to @loader_path/* so the dylibs find
-            # each other regardless of install location.
+
+            # Add @loader_path as an RPATH so each dylib finds its neighbours.
             for dylib in "$STAGING"/*.dylib; do
               install_name_tool -add_rpath @loader_path "$dylib" 2>/dev/null || true
+              echo "RPATH patched: $(basename $dylib)"
             done
+
           elif [ "$RUNNER_OS" == "Windows" ]; then
-            # On Windows, Conan DLLs are in the Conan package bin/ dirs.
-            # Find them by looking at the build directory for copied DLLs,
-            # or search the Conan cache directly for known TBB/bzip2 DLLs.
             CONAN_HOME="${USERPROFILE}/.conan2"
             for dll in tbb12.dll tbbmalloc.dll tbbmalloc_proxy.dll bz2.dll; do
               found=$(find "$CONAN_HOME" -name "$dll" -type f 2>/dev/null | head -1)
-              if [ -n "$found" ]; then
-                cp "$found" "$STAGING/" && echo "Bundled: $dll"
-              fi
+              [ -n "$found" ] && cp "$found" "$STAGING/" && echo "Bundled: $dll"
             done
           fi
 
