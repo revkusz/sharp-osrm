@@ -370,6 +370,9 @@ jobs:
     name: Pack NuGet Package
     runs-on: ubuntu-24.04
     needs: [collect-artifacts]
+    # Must use always() because collect-artifacts' transitive dependency
+    # (build-native) may be skipped when artifacts are reused from a prior run.
+    if: always() && needs.collect-artifacts.result == 'success'
     timeout-minutes: 15
     steps:
       - name: Checkout with submodules
@@ -475,6 +478,9 @@ jobs:
     name: Integration Test
     runs-on: ubuntu-24.04
     needs: [pack-nuget]
+    # Must use always() because transitive upstream jobs (build-native) may
+    # be skipped when artifacts are reused from a prior run.
+    if: always() && needs.pack-nuget.result == 'success'
     timeout-minutes: 30
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -513,8 +519,10 @@ jobs:
     name: Publish to NuGet.org
     runs-on: ubuntu-24.04
     needs: [integration-test]
-    # Only run on version tags — never on branch pushes or PRs
-    if: github.ref_type == 'tag'
+    # Only run on version tags — never on branch pushes or PRs.
+    # Must use always() because transitive upstream jobs may be skipped when
+    # artifacts are reused from a prior run.
+    if: always() && github.ref_type == 'tag' && needs.integration-test.result == 'success'
     environment: release
     timeout-minutes: 10
     steps:
