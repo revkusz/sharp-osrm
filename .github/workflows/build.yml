@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          NEEDED="sharposrm-linux-x64 sharposrm-macos-arm64"
+          NEEDED="sharposrm-linux-x64 sharposrm-macos-arm64 sharposrm-win-x64"
 
           # Find the most recent successful run of this workflow on the same SHA,
           # excluding the current run itself.
@@ -87,7 +87,7 @@ jobs:
           if-no-files-found: error
 
       - name: Re-upload win-x64
-        if: false  # disabled with windows build
+        if: steps.check.outputs.artifacts_ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: sharposrm-win-x64
@@ -119,13 +119,12 @@ jobs:
             artifact: sharposrm-macos-arm64
             lib_name: libsharposrm.dylib
             lib_path: build/macos-arm64/libsharposrm.dylib
-          # Temporarily disabled — 20+ min build, re-enable after CI is green
-          # - runner: windows-2025
-          #   label: win-x64
-          #   preset: win-x64
-          #   artifact: sharposrm-win-x64
-          #   lib_name: sharposrm.dll
-          #   lib_path: build/win-x64/Release/sharposrm.dll
+          - runner: windows-2025
+            label: win-x64
+            preset: win-x64
+            artifact: sharposrm-win-x64
+            lib_name: sharposrm.dll
+            lib_path: build/win-x64/Release/sharposrm.dll
 
     steps:
       - name: Checkout with submodules
@@ -305,8 +304,8 @@ jobs:
           elif [ "$RUNNER_OS" == "Windows" ]; then
             CONAN_HOME="${USERPROFILE}/.conan2"
             for dll in tbb12.dll tbbmalloc.dll tbbmalloc_proxy.dll bz2.dll; do
-              found=$(find "$CONAN_HOME" -name "$dll" -type f 2>/dev/null | head -1)
-              [ -n "$found" ] && cp "$found" "$STAGING/" && echo "Bundled: $dll"
+              found=$(find "$CONAN_HOME" \( -type f -o -type l \) -name "$dll" 2>/dev/null | head -1)
+              [ -n "$found" ] && cp -L "$found" "$STAGING/" && echo "Bundled: $dll"
             done
           fi
 
@@ -348,7 +347,7 @@ jobs:
           echo ""
 
           missing=0
-          for expected in sharposrm-linux-x64 sharposrm-macos-arm64; do
+          for expected in sharposrm-linux-x64 sharposrm-macos-arm64 sharposrm-win-x64; do
             if [ -d "artifacts/$expected" ]; then
               echo "✅ Found: $expected"
             else
@@ -412,9 +411,10 @@ jobs:
           # Note: artifact names use 'macos-' but NuGet RIDs use 'osx-' (dotnet convention).
           # Artifacts now contain the main library + bundled Conan dependencies.
           # Move everything from the per-artifact dirs into the RID-named dirs.
-          mkdir -p native-libs/{linux-x64,osx-arm64}
+          mkdir -p native-libs/{linux-x64,osx-arm64,win-x64}
           mv native-libs/sharposrm-linux-x64/*   native-libs/linux-x64/
           mv native-libs/sharposrm-macos-arm64/* native-libs/osx-arm64/
+          mv native-libs/sharposrm-win-x64/*     native-libs/win-x64/
           rm -rf native-libs/sharposrm-*
           echo "=== Native library layout ==="
           find native-libs -type f | sort
@@ -442,8 +442,8 @@ jobs:
           echo "=== Package contents ==="
           unzip -l "$NUPKG"
           echo ""
-          echo "=== Checking all 2 runtime directories ==="
-          for rid in linux-x64 osx-arm64; do
+          echo "=== Checking all 3 runtime directories ==="
+          for rid in linux-x64 osx-arm64 win-x64; do
             if unzip -l "$NUPKG" | grep -q "runtimes/$rid/native/"; then
               echo "✅ runtimes/$rid/native/ found"
             else
