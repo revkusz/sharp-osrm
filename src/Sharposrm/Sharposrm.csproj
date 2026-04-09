@@ -19,12 +19,13 @@
     <InternalsVisibleTo Include="Sharposrm.Tests" />
   </ItemGroup>
 
-  <!-- Native libraries for NuGet package (activated when NativeLibsDir is set in CI) -->
+  <!-- Native libraries for NuGet package (activated when NativeLibsDir is set in CI).
+       NativeLibsDir must be an absolute path — MSBuild resolves Include paths relative
+       to the .csproj, so a relative path passed via -p:NativeLibsDir would be wrong. -->
   <ItemGroup Condition="'$(NativeLibsDir)' != ''">
-    <None Include="$(NativeLibsDir)linux-x64/libsharposrm.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
-    <None Include="$(NativeLibsDir)osx-x64/libsharposrm.dylib" Pack="true" PackagePath="runtimes/osx-x64/native/" />
-    <None Include="$(NativeLibsDir)osx-arm64/libsharposrm.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
-    <None Include="$(NativeLibsDir)win-x64/sharposrm.dll" Pack="true" PackagePath="runtimes/win-x64/native/" />
+    <None Include="$(NativeLibsDir)/linux-x64/libsharposrm.so" Pack="true" PackagePath="runtimes/linux-x64/native/" />
+    <None Include="$(NativeLibsDir)/osx-arm64/libsharposrm.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native/" />
+    <None Include="$(NativeLibsDir)/win-x64/sharposrm.dll" Pack="true" PackagePath="runtimes/win-x64/native/" />
   </ItemGroup>
 
   <!-- Pack license and notices into the NuGet package (files are at repo root) -->

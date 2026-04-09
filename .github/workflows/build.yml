@@ -314,7 +314,7 @@ jobs:
           dotnet pack src/Sharposrm/Sharposrm.csproj \
             -c Release \
             -p:Version="$VERSION" \
-            -p:NativeLibsDir=native-libs/ \
+            -p:NativeLibsDir="$(pwd)/native-libs" \
             -o nupkg-output/
 
       - name: Validate package structure
