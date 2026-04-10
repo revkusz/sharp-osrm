@@ -19,15 +19,16 @@
     Sharposrm is consumed via PackageReference (not ProjectReference) to prove
     the NuGet package works end-to-end. CI configures a local NuGet source
     pointing at the packed .nupkg before running these tests.
-    
-    For local development, create a NuGet.Config with a local source pointing
-    to your packed .nupkg, or run: dotnet pack src/Sharposrm first.
+
+    CI passes -p:SharposrmTestVersion=0.2.0-dev.sha to pin the exact local
+    package. Without that property (local dev), falls back to *-* which
+    resolves the highest available prerelease version.
   -->
+  <PropertyGroup>
+    <SharposrmTestVersion Condition="'$(SharposrmTestVersion)' == ''">*-*</SharposrmTestVersion>
+  </PropertyGroup>
   <ItemGroup>
-    <!-- Floating version: resolves the highest available version including
-         prerelease builds (e.g. 0.2.0-dev.abc1234 from a branch push).
-         CI always packs before running these tests, so this always resolves. -->
-    <PackageReference Include="Sharposrm" Version="*-*" />
+    <PackageReference Include="Sharposrm" Version="$(SharposrmTestVersion)" />
   </ItemGroup>
 
 </Project>

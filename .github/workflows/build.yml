@@ -608,7 +608,7 @@ jobs:
 
       - name: Run integration tests
         shell: bash
-        run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"
+        run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed" -p:SharposrmTestVersion="$VERSION"
 
   # ── Publish ───────────────────────────────────────────────────────────────
   publish-nuget:
