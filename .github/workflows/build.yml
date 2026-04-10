@@ -314,7 +314,6 @@ jobs:
 
             # Rewrite load commands so each dylib finds co-located deps via
             # @loader_path/ instead of @rpath/ or absolute Conan paths.
-            # Also fix the install name (LC_ID_DYLIB) for the renamed main library.
             # IMPORTANT: strip code signatures first — install_name_tool silently
             # fails to modify signed binaries on modern macOS.
             for dylib in "$STAGING"/*.dylib; do
@@ -324,17 +323,12 @@ jobs:
               install_name_tool -id "@rpath/sharposrm.dylib" "$STAGING/sharposrm.dylib" || true
             fi
             for dylib in "$STAGING"/*.dylib; do
-              echo "--- Rewriting: $(basename $dylib) ---"
-              echo "Before:"
-              otool -L "$dylib" | grep -v "^$" | sed 's/^/  /'
               # Rewrite @rpath/ references → @loader_path/
               for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "^@rpath/"); do
-                echo "  -change \"$ref\" → \"@loader_path/$(basename $ref)\""
                 install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" || true
               done
               # Rewrite absolute Conan paths → @loader_path/
               for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "\.conan2"); do
-                echo "  -change \"$ref\" → \"@loader_path/$(basename $ref)\""
                 install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" || true
               done
               # Add @loader_path RPATH and remove all absolute RPATHs
@@ -344,8 +338,6 @@ jobs:
                 | while read old_rpath; do
                   install_name_tool -delete_rpath "$old_rpath" "$dylib" 2>/dev/null || true
                 done || true
-              echo "After:"
-              otool -L "$dylib" | grep -v "^$" | sed 's/^/  /'
               # Re-sign with ad-hoc signature after modifying load commands
               codesign -s - "$dylib" 2>/dev/null || true
             done
@@ -508,14 +500,6 @@ jobs:
           echo "=== Native library layout ==="
           find native-libs -type f | sort
 
-          # Verify macOS dylib load commands — @loader_path must be present
-          if [ -f "native-libs/osx-arm64/sharposrm.dylib" ]; then
-            echo "=== macOS sharposrm.dylib load commands ==="
-            otool -L native-libs/osx-arm64/sharposrm.dylib || true
-            echo "=== macOS sharposrm.dylib RPATH entries ==="
-            otool -l native-libs/osx-arm64/sharposrm.dylib | grep -A2 LC_RPATH || true
-          fi
-
       - name: Pack NuGet package
         shell: bash
         run: |
@@ -624,15 +608,7 @@ jobs:
 
       - name: Run integration tests
         shell: bash
-        run: |
-          # Diagnostic: check macOS native library load commands before running tests
-          if [ "$RUNNER_OS" == "macOS" ]; then
-            echo "=== Checking sharposrm.dylib in test output ==="
-            find test/Sharposrm.IntegrationTests/bin -name "sharposrm.dylib" -exec otool -L {} \; 2>/dev/null || true
-            echo "=== All files in runtimes/osx-arm64/native/ ==="
-            find test/Sharposrm.IntegrationTests/bin -path "*/runtimes/osx-arm64/native/*" -type f 2>/dev/null || true
-          fi
-          dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"
+        run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"
 
   # ── Publish ───────────────────────────────────────────────────────────────
   publish-nuget:

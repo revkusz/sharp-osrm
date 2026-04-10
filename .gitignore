@@ -19,8 +19,6 @@ CMakeUserPresets.json
 *.user
 *.suo
 
-## Local dev NuGet config (hardcoded absolute paths)
-test/Sharposrm.IntegrationTests/NuGet.Config
 
 ## macOS
 .DS_Store
