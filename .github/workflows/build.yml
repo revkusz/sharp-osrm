@@ -624,7 +624,15 @@ jobs:
 
       - name: Run integration tests
         shell: bash
-        run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"
+        run: |
+          # Diagnostic: check macOS native library load commands before running tests
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            echo "=== Checking sharposrm.dylib in test output ==="
+            find test/Sharposrm.IntegrationTests/bin -name "sharposrm.dylib" -exec otool -L {} \; 2>/dev/null || true
+            echo "=== All files in runtimes/osx-arm64/native/ ==="
+            find test/Sharposrm.IntegrationTests/bin -path "*/runtimes/osx-arm64/native/*" -type f 2>/dev/null || true
+          fi
+          dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed"
 
   # ── Publish ───────────────────────────────────────────────────────────────
   publish-nuget:
