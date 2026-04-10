@@ -4,6 +4,8 @@ obj/
 build/
 build-*/
 nupkg-output/
+nupkg-local/
+staging-local/
 
 ## CMake / Conan generated
 CMakeUserPresets.json
@@ -16,6 +18,9 @@ CMakeUserPresets.json
 .idea/
 *.user
 *.suo
+
+## Local dev NuGet config (hardcoded absolute paths)
+test/Sharposrm.IntegrationTests/NuGet.Config
 
 ## macOS
 .DS_Store
