@@ -588,6 +588,10 @@ typedef struct SharposrmCustomizerConfig
     int segment_speed_lookup_count;          /* count (0 if array is null) */
     const char** turn_penalty_lookup_paths;  /* nullable: array of file paths */
     int turn_penalty_lookup_count;           /* count (0 if array is null) */
+
+    const char* tz_file_path;               /* nullable: path to time zone shapefile */
+    long valid_now;                          /* time_t: 0 = unset (parse-conditionals-from-now) */
+    double log_edge_updates_factor;          /* default 0.0 */
 } SharposrmCustomizerConfig;
 
 /*
@@ -608,6 +612,10 @@ typedef struct SharposrmContractorConfig
     int segment_speed_lookup_count;          /* count (0 if array is null) */
     const char** turn_penalty_lookup_paths;  /* nullable: array of file paths */
     int turn_penalty_lookup_count;           /* count (0 if array is null) */
+
+    const char* tz_file_path;               /* nullable: path to time zone shapefile */
+    long valid_now;                          /* time_t: 0 = unset (parse-conditionals-from-now) */
+    double log_edge_updates_factor;          /* default 0.0 */
 } SharposrmContractorConfig;
 
 /**

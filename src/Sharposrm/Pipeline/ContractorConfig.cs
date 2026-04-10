@@ -32,6 +32,24 @@ public sealed class ContractorConfig
     public string[]? TurnPenaltyFiles { get; set; }
 
     /// <summary>
+    /// Optional path to a time zone shapefile for conditional restriction evaluation.
+    /// Corresponds to <c>--time-zone-file</c> in the OSRM CLI.
+    /// </summary>
+    public string? TimeZoneFilePath { get; set; }
+
+    /// <summary>
+    /// Timestamp for conditional restriction evaluation ("parse conditionals from now").
+    /// 0 means unset. Corresponds to <c>--parse-conditionals-from-now</c> in the OSRM CLI.
+    /// Value is a Unix timestamp (seconds since epoch).
+    /// </summary>
+    public long ValidNow { get; set; }
+
+    /// <summary>
+    /// Logging threshold factor for edge update reporting. Default is 0.0.
+    /// </summary>
+    public double LogEdgeUpdatesFactor { get; set; }
+
+    /// <summary>
     /// Converts this managed config to a blittable native struct for interop.
     /// Allocates unmanaged memory for string arrays (individual strings + pointer arrays).
     /// </summary>
@@ -45,6 +63,10 @@ public sealed class ContractorConfig
         var (segSpeedPtr, segSpeedCount) = AllocateStringArray(scope, SegmentSpeedFiles);
         var (turnPenaltyPtr, turnPenaltyCount) = AllocateStringArray(scope, TurnPenaltyFiles);
 
+        IntPtr tzFilePtr = TimeZoneFilePath is not null
+            ? Marshal.StringToHGlobalAnsi(TimeZoneFilePath)
+            : IntPtr.Zero;
+
         scope.Config = new NativeContractorConfig
         {
             base_path = Marshal.StringToHGlobalAnsi(BasePath),
@@ -53,9 +75,14 @@ public sealed class ContractorConfig
             segment_speed_lookup_count = segSpeedCount,
             turn_penalty_lookup_paths = turnPenaltyPtr,
             turn_penalty_lookup_count = turnPenaltyCount,
+            tz_file_path = tzFilePtr,
+            valid_now = ValidNow,
+            log_edge_updates_factor = LogEdgeUpdatesFactor,
         };
 
         scope.AddAllocation(scope.Config.base_path);
+        if (tzFilePtr != IntPtr.Zero)
+            scope.AddAllocation(tzFilePtr);
 
         return scope;
     }
