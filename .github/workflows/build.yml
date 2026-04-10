@@ -268,42 +268,111 @@ jobs:
             done
 
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            # On macOS dylibs use @rpath, which gets resolved via LC_RPATH
-            # entries embedded in the binary. The Conan-installed libraries
-            # live under ~/.conan2; find them by the known names.
             CONAN2="$HOME/.conan2"
-            TBB_DIR=$(find "$CONAN2" -name "libtbb.12.dylib" -type f 2>/dev/null \
-              | head -1 | xargs -I{} dirname {})
-            BZ2_DIR=$(find "$CONAN2" -name "libbz2.1.dylib" -type f 2>/dev/null \
-              | head -1 | xargs -I{} dirname {})
 
-            for lib in \
-              "$TBB_DIR/libtbb.12.dylib" \
-              "$TBB_DIR/libtbbmalloc.2.dylib" \
-              "$TBB_DIR/libtbbmalloc_proxy.2.dylib" \
-              "$BZ2_DIR/libbz2.1.dylib"; do
-              [ -f "$lib" ] && cp -L "$lib" "$STAGING/" && echo "Bundled: $(basename $lib)"
+            # Resolve @rpath/ and absolute Conan references from the main
+            # dylib AND from each bundled dylib (multi-pass to catch transitive
+            # deps). Keeps looping until no new deps are found.
+            resolve_deps() {
+              local dylib="$1"
+              # Collect both @rpath/ references and absolute .conan2 paths
+              otool -L "$dylib" | awk '{print $1}' | while read ref; do
+                if echo "$ref" | grep -q "^@rpath/"; then
+                  libname=$(basename "$ref")
+                  if [ ! -f "$STAGING/$libname" ]; then
+                    found=$(find "$CONAN2" \( -type f -o -type l \) -name "$libname" 2>/dev/null | head -1)
+                    if [ -n "$found" ]; then
+                      cp -L "$found" "$STAGING/" && echo "Bundled: $libname"
+                    else
+                      echo "WARNING: Could not find $libname in Conan cache"
+                    fi
+                  fi
+                elif echo "$ref" | grep -q "\.conan2"; then
+                  base=$(basename "$ref")
+                  if [ ! -f "$STAGING/$base" ]; then
+                    cp -L "$ref" "$STAGING/" && echo "Bundled: $base"
+                  fi
+                fi
+              done
+            }
+
+            # First pass: direct deps of the main library
+            resolve_deps "$LIB_PATH"
+
+            # Multi-pass: keep resolving transitive deps until stable
+            prev_count=0
+            while true; do
+              cur_count=$(ls "$STAGING"/*.dylib 2>/dev/null | wc -l)
+              [ "$cur_count" -eq "$prev_count" ] && break
+              prev_count=$cur_count
+              for dylib in "$STAGING"/*.dylib; do
+                resolve_deps "$dylib"
+              done
             done
 
-            # Add @loader_path and delete all absolute Conan RPATHs so the
-            # dylibs find each other via @loader_path regardless of install
-            # location. Just adding @loader_path isn't enough — the old
-            # absolute Conan RPATHs take priority and fail on other machines.
+            # Rewrite load commands so each dylib finds co-located deps via
+            # @loader_path/ instead of @rpath/ or absolute Conan paths.
             for dylib in "$STAGING"/*.dylib; do
+              # Rewrite @rpath/ references → @loader_path/
+              for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "^@rpath/"); do
+                install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" 2>/dev/null || true
+              done
+              # Rewrite absolute Conan paths → @loader_path/
+              for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "\.conan2"); do
+                install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" 2>/dev/null || true
+              done
+              # Add @loader_path RPATH and remove all absolute RPATHs
               install_name_tool -add_rpath @loader_path "$dylib" 2>/dev/null || true
               otool -l "$dylib" | grep -A2 LC_RPATH | grep "path " | awk '{print $2}' \
                 | grep -v "^@loader_path" \
                 | while read old_rpath; do
                   install_name_tool -delete_rpath "$old_rpath" "$dylib" 2>/dev/null || true
                 done
-              echo "RPATH cleaned: $(basename $dylib)"
+              echo "RPATH fixed: $(basename $dylib)"
             done
 
           elif [ "$RUNNER_OS" == "Windows" ]; then
             CONAN_HOME="${USERPROFILE}/.conan2"
-            for dll in tbb12.dll tbbmalloc.dll tbbmalloc_proxy.dll bz2.dll; do
-              found=$(find "$CONAN_HOME" \( -type f -o -type l \) -name "$dll" 2>/dev/null | head -1)
-              [ -n "$found" ] && cp -L "$found" "$STAGING/" && echo "Bundled: $dll"
+
+            # Dynamically discover Conan-built DLL dependencies using objdump.
+            # Parse DLL imports, filter out Windows system DLLs, then search
+            # the Conan cache for each one.
+            resolve_win_deps() {
+              local binary="$1"
+              objdump -p "$binary" 2>/dev/null | grep "DLL Name:" | awk '{print $3}' | while read dll; do
+                # Skip Windows system DLLs (KERNEL32, ADVAPI32, MSVCP, VCRUNTIME, api-ms-*, etc.)
+                case "$dll" in
+                  KERNEL32.dll|kernel32.dll) continue ;;
+                  ADVAPI32.dll|advapi32.dll) continue ;;
+                  MSVCP*.dll|msvcp*.dll) continue ;;
+                  VCRUNTIME*.dll|vcruntime*.dll) continue ;;
+                  api-ms-*) continue ;;
+                  ucrtbase*.dll|UCRTBASE*.dll) continue ;;
+                  ntdll.dll|NTDLL.dll) continue ;;
+                  ole32.dll|OLE32.dll) continue ;;
+                  bcrypt.dll|BCRYPT.dll) continue ;;
+                esac
+                if [ ! -f "$STAGING/$dll" ]; then
+                  found=$(find "$CONAN_HOME" \( -type f -o -type l \) -name "$dll" 2>/dev/null | head -1)
+                  if [ -n "$found" ]; then
+                    cp -L "$found" "$STAGING/" && echo "Bundled: $dll"
+                  fi
+                fi
+              done
+            }
+
+            # First pass: direct deps of the main DLL
+            resolve_win_deps "$LIB_PATH"
+
+            # Multi-pass: keep resolving transitive deps until stable
+            prev_count=0
+            while true; do
+              cur_count=$(ls "$STAGING"/*.dll 2>/dev/null | wc -l)
+              [ "$cur_count" -eq "$prev_count" ] && break
+              prev_count=$cur_count
+              for dll in "$STAGING"/*.dll; do
+                resolve_win_deps "$dll"
+              done
             done
           fi
 
@@ -472,14 +541,27 @@ jobs:
           if-no-files-found: error
 
   # ── Integration test ──────────────────────────────────────────────────────
+  # Runs on all three platforms to verify the NuGet package loads native
+  # libraries correctly on each OS. This catches missing dependencies
+  # (like the macOS libbz2 issue) before publishing.
   integration-test:
-    name: Integration Test
-    runs-on: ubuntu-24.04
+    name: Integration Test (${{ matrix.platform.label }})
+    runs-on: ${{ matrix.platform.runner }}
     needs: [pack-nuget]
     # Must use always() because transitive upstream jobs (build-native) may
     # be skipped when artifacts are reused from a prior run.
     if: always() && needs.pack-nuget.result == 'success'
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-24.04
+            label: linux-x64
+          - runner: macos-15
+            label: macos-arm64
+          - runner: windows-2025
+            label: win-x64
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       NUGET_CERT_REVOCATION_MODE: offline
