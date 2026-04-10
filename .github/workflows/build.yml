@@ -275,9 +275,11 @@ jobs:
             # deps). Keeps looping until no new deps are found.
             resolve_deps() {
               local dylib="$1"
-              # Collect both @rpath/ references and absolute .conan2 paths
-              otool -L "$dylib" | awk '{print $1}' | while read ref; do
-                if echo "$ref" | grep -q "^@rpath/"; then
+              # Collect both @rpath/ references and absolute .conan2 paths.
+              # Use [[ ]] tests instead of grep to avoid non-zero exit codes
+              # that would trip set -e in the pipeline subshell.
+              otool -L "$dylib" | awk '{print $1}' | while read -r ref; do
+                if [[ "$ref" == @rpath/* ]]; then
                   libname=$(basename "$ref")
                   if [ ! -f "$STAGING/$libname" ]; then
                     found=$(find "$CONAN2" \( -type f -o -type l \) -name "$libname" 2>/dev/null | head -1)
@@ -287,13 +289,13 @@ jobs:
                       echo "WARNING: Could not find $libname in Conan cache"
                     fi
                   fi
-                elif echo "$ref" | grep -q "\.conan2"; then
+                elif [[ "$ref" == *.conan2* ]]; then
                   base=$(basename "$ref")
                   if [ ! -f "$STAGING/$base" ]; then
                     cp -L "$ref" "$STAGING/" && echo "Bundled: $base"
                   fi
                 fi
-              done
+              done || true
             }
 
             # First pass: direct deps of the main library
