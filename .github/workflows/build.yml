@@ -448,6 +448,8 @@ jobs:
     name: Pack NuGet Package
     runs-on: ubuntu-24.04
     needs: [collect-artifacts]
+    outputs:
+      package_version: ${{ steps.resolve-version.outputs.package_version }}
     # Must use always() because collect-artifacts' transitive dependency
     # (build-native) may be skipped when artifacts are reused from a prior run.
     if: always() && needs.collect-artifacts.result == 'success'
@@ -465,17 +467,17 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Resolve package version
+        id: resolve-version
         shell: bash
         run: |
           if [ "$GITHUB_REF_TYPE" == "tag" ]; then
-            # Strip the leading 'v' from the tag name (v1.2.3 → 1.2.3)
             VERSION="${GITHUB_REF_NAME#v}"
           else
-            # Non-tag builds: read the version from the .csproj and append a pre-release suffix
             CSPROJ_VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/Sharposrm/Sharposrm.csproj)
             VERSION="${CSPROJ_VERSION}-dev.${GITHUB_SHA:0:7}"
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "package_version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved package version: $VERSION"
 
       - name: Download all native artifacts
@@ -608,7 +610,7 @@ jobs:
 
       - name: Run integration tests
         shell: bash
-        run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed" -p:SharposrmTestVersion="$VERSION"
+        run: dotnet test test/Sharposrm.IntegrationTests/ -c Release --logger "console;verbosity=detailed" -p:SharposrmTestVersion="${{ needs.pack-nuget.outputs.package_version }}"
 
   # ── Publish ───────────────────────────────────────────────────────────────
   publish-nuget:
