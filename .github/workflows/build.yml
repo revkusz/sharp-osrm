@@ -329,7 +329,7 @@ jobs:
                 | grep -v "^@loader_path" \
                 | while read old_rpath; do
                   install_name_tool -delete_rpath "$old_rpath" "$dylib" 2>/dev/null || true
-                done
+                done || true
               echo "RPATH fixed: $(basename $dylib)"
             done
 
