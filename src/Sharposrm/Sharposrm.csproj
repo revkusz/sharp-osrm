@@ -13,8 +13,8 @@
     <Description>.NET wrapper for OSRM (Open Source Routing Machine) — native C interop for high-performance routing</Description>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageProjectUrl>https://github.com/revkusz/sharposrm</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/revkusz/sharposrm</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/revkusz/sharp-osrm</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/revkusz/sharp-osrm</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>osrm;routing;navigation;geospatial</PackageTags>
   </PropertyGroup>
