@@ -312,33 +312,36 @@ jobs:
               done
             done
 
-            # Rewrite load commands so each dylib finds co-located deps via
+            # Rewrite ALL dylib load commands so each finds co-located deps via
             # @loader_path/ instead of @rpath/ or absolute Conan paths.
+            # Both install names (-id) AND dependency references (-change) must
+            # use @loader_path/ — otherwise the dynamic linker resolves against
+            # system libraries (e.g. Homebrew TBB) which have different symbols.
             # IMPORTANT: strip code signatures first — install_name_tool silently
             # fails to modify signed binaries on modern macOS.
             for dylib in "$STAGING"/*.dylib; do
               codesign --remove-signature "$dylib" 2>/dev/null || true
             done
-            if [ -f "$STAGING/sharposrm.dylib" ]; then
-              install_name_tool -id "@rpath/sharposrm.dylib" "$STAGING/sharposrm.dylib" || true
-            fi
             for dylib in "$STAGING"/*.dylib; do
-              # Rewrite @rpath/ references → @loader_path/
+              base=$(basename "$dylib")
+              # Fix install name (LC_ID_DYLIB) — must be @loader_path/ not @rpath/
+              install_name_tool -id "@loader_path/$base" "$dylib" || true
+              # Rewrite @rpath/ dependency references → @loader_path/
               for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "^@rpath/"); do
                 install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" || true
               done
-              # Rewrite absolute Conan paths → @loader_path/
+              # Rewrite absolute Conan dependency paths → @loader_path/
               for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "\.conan2"); do
                 install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" || true
               done
-              # Add @loader_path RPATH and remove all absolute RPATHs
+              # Add @loader_path RPATH and remove stale absolute RPATHs
               install_name_tool -add_rpath @loader_path "$dylib" 2>/dev/null || true
               otool -l "$dylib" | grep -A2 LC_RPATH | grep "path " | awk '{print $2}' \
                 | grep -v "^@loader_path" \
                 | while read old_rpath; do
                   install_name_tool -delete_rpath "$old_rpath" "$dylib" 2>/dev/null || true
                 done || true
-              # Re-sign with ad-hoc signature after modifying load commands
+              # Re-sign with ad-hoc signature after all modifications
               codesign -s - "$dylib" 2>/dev/null || true
             done
 
