@@ -454,7 +454,7 @@ jobs:
           done
           echo ""
           echo "=== Checking metadata files ==="
-          for file in LICENSE THIRD-PARTY-NOTICES.txt; do
+          for file in README.md LICENSE THIRD-PARTY-NOTICES.txt; do
             if unzip -l "$NUPKG" | grep -q "$file"; then
               echo "✅ $file found"
             else

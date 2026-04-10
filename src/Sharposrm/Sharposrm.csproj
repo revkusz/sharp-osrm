@@ -12,6 +12,10 @@
     <PackageId>Sharposrm</PackageId>
     <Description>.NET wrapper for OSRM (Open Source Routing Machine) — native C interop for high-performance routing</Description>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/revkusz/sharposrm</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/revkusz/sharposrm</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageTags>osrm;routing;navigation;geospatial</PackageTags>
   </PropertyGroup>
 
@@ -35,6 +39,7 @@
     <RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../..'))</RepoRoot>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="$(RepoRoot)/README.md" Pack="true" PackagePath="" />
     <None Include="$(RepoRoot)/LICENSE" Pack="true" PackagePath="" />
     <None Include="$(RepoRoot)/THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="" />
   </ItemGroup>
