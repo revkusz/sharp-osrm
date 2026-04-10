@@ -508,6 +508,14 @@ jobs:
           echo "=== Native library layout ==="
           find native-libs -type f | sort
 
+          # Verify macOS dylib load commands — @loader_path must be present
+          if [ -f "native-libs/osx-arm64/sharposrm.dylib" ]; then
+            echo "=== macOS sharposrm.dylib load commands ==="
+            otool -L native-libs/osx-arm64/sharposrm.dylib || true
+            echo "=== macOS sharposrm.dylib RPATH entries ==="
+            otool -l native-libs/osx-arm64/sharposrm.dylib | grep -A2 LC_RPATH || true
+          fi
+
       - name: Pack NuGet package
         shell: bash
         run: |
