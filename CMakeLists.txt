@@ -94,6 +94,35 @@ if(ENABLE_CONAN)
         add_compile_options(-Wno-error=array-bounds)
     endif()
 
+    # ── Optional: Strip TBB malloc proxy from Conan-generated TBB config ───
+    # Conan's onetbb package unconditionally adds tbbmalloc and tbbmalloc_proxy
+    # to the transitive dependency chain of TBB::tbb.  tbbmalloc provides
+    # TBB's scalable allocator (scalable_malloc/scalable_free) which OSRM uses
+    # for performance.  tbbmalloc_proxy goes further — it replaces the process's
+    # malloc/free/realloc with TBB's allocator globally, which can cause crashes
+    # and corruption in co-loaded native libraries (e.g. SQLite).
+    #
+    # By default we keep both (OSRM needs tbbmalloc for performance).  Enable
+    # STRIP_TBBMALLOC=ON only if you need to isolate this library from other
+    # native code that cannot tolerate a replaced malloc.
+    option(STRIP_TBBMALLOC "Strip tbbmalloc and tbbmalloc_proxy from the link (may degrade OSRM performance)" OFF)
+    if(STRIP_TBBMALLOC)
+        file(GLOB _tbb_target_files "${CMAKE_BINARY_DIR}/TBB-Target-*.cmake")
+        foreach(_f ${_tbb_target_files})
+            file(READ "${_f}" _content)
+            string(REGEX REPLACE "TBB::tbbmalloc_proxy" "" _content "${_content}")
+            string(REGEX REPLACE "TBB::tbbmalloc" "" _content "${_content}")
+            string(REGEX REPLACE "libtbbmalloc_proxy\\.[a-z0-9]+\\.dylib" "" _content "${_content}")
+            string(REGEX REPLACE "libtbbmalloc\\.[a-z0-9]+\\.dylib" "" _content "${_content}")
+            string(REGEX REPLACE "libtbbmalloc_proxy\\.so[.*a-z0-9]*" "" _content "${_content}")
+            string(REGEX REPLACE "libtbbmalloc\\.so[.*a-z0-9]*" "" _content "${_content}")
+            string(REGEX REPLACE "tbbmalloc_proxy\\.lib" "" _content "${_content}")
+            string(REGEX REPLACE "tbbmalloc\\.lib" "" _content "${_content}")
+            file(WRITE "${_f}" "${_content}")
+        endforeach()
+        message(STATUS "STRIP_TBBMALLOC=ON: tbbmalloc and tbbmalloc_proxy removed from link")
+    endif()
+
     add_subdirectory(osrm-backend)
 
     # After add_subdirectory, OSRM exposes these to parent scope:

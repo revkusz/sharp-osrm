@@ -1,6 +1,10 @@
 # SharpOSRM
 
+> **⚠️ Disclaimer: This project is entirely vibe coded.**
+
 A .NET 8 wrapper for [OSRM](http://project-osrm.org/) (Open Source Routing Machine) using native C interop. SharpOSRM exposes OSRM's routing engine and data pipeline as idiomatic C# APIs, distributed as a cross-platform NuGet package that bundles the native `libsharposrm` shared library for Linux (x64), macOS (x64/arm64), and Windows (x64).
+
+> **⚠️ TBB malloc proxy notice:** The native library links TBB's `tbbmalloc_proxy`, which replaces the process's `malloc`/`free`/`realloc` with TBB's scalable allocator globally. This improves OSRM's routing performance but **can cause crashes and memory corruption in other native libraries** (e.g. SQLite, custom native dependencies) loaded in the same process. If your application uses other native libraries that are incompatible with a replaced malloc, build from source with `-DSTRIP_TBBMALLOC=ON` to disable the proxy at the cost of reduced routing performance.
 
 ---
 
