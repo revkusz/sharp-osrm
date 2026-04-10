@@ -1100,6 +1100,12 @@ osrm::customizer::CustomizationConfig translate_customizer_config(const Sharposr
             cfg.updater_config.turn_penalty_lookup_paths.emplace_back(config->turn_penalty_lookup_paths[i]);
     }
 
+    if (config->tz_file_path && config->tz_file_path[0] != '\0')
+        cfg.updater_config.tz_file_path = std::string(config->tz_file_path);
+    if (config->valid_now != 0)
+        cfg.updater_config.valid_now = static_cast<std::time_t>(config->valid_now);
+    cfg.updater_config.log_edge_updates_factor = config->log_edge_updates_factor;
+
     if (config->base_path && config->base_path[0] != '\0')
         cfg.UseDefaultOutputNames(std::filesystem::path(config->base_path));
 
@@ -1125,6 +1131,12 @@ osrm::contractor::ContractorConfig translate_contractor_config(const SharposrmCo
         for (int i = 0; i < config->turn_penalty_lookup_count; ++i)
             cfg.updater_config.turn_penalty_lookup_paths.emplace_back(config->turn_penalty_lookup_paths[i]);
     }
+
+    if (config->tz_file_path && config->tz_file_path[0] != '\0')
+        cfg.updater_config.tz_file_path = std::string(config->tz_file_path);
+    if (config->valid_now != 0)
+        cfg.updater_config.valid_now = static_cast<std::time_t>(config->valid_now);
+    cfg.updater_config.log_edge_updates_factor = config->log_edge_updates_factor;
 
     if (config->base_path && config->base_path[0] != '\0')
         cfg.UseDefaultOutputNames(std::filesystem::path(config->base_path));
