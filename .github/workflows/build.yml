@@ -315,8 +315,13 @@ jobs:
             # Rewrite load commands so each dylib finds co-located deps via
             # @loader_path/ instead of @rpath/ or absolute Conan paths.
             # Also fix the install name (LC_ID_DYLIB) for the renamed main library.
+            # IMPORTANT: strip code signatures first — install_name_tool silently
+            # fails to modify signed binaries on modern macOS.
+            for dylib in "$STAGING"/*.dylib; do
+              codesign --remove-signature "$dylib" 2>/dev/null || true
+            done
             if [ -f "$STAGING/sharposrm.dylib" ]; then
-              install_name_tool -id "@rpath/sharposrm.dylib" "$STAGING/sharposrm.dylib" 2>/dev/null || true
+              install_name_tool -id "@rpath/sharposrm.dylib" "$STAGING/sharposrm.dylib" || true
             fi
             for dylib in "$STAGING"/*.dylib; do
               echo "--- Rewriting: $(basename $dylib) ---"
@@ -341,6 +346,8 @@ jobs:
                 done || true
               echo "After:"
               otool -L "$dylib" | grep -v "^$" | sed 's/^/  /'
+              # Re-sign with ad-hoc signature after modifying load commands
+              codesign -s - "$dylib" 2>/dev/null || true
             done
 
           elif [ "$RUNNER_OS" == "Windows" ]; then
