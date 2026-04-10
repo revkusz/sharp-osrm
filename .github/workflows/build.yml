@@ -314,14 +314,23 @@ jobs:
 
             # Rewrite load commands so each dylib finds co-located deps via
             # @loader_path/ instead of @rpath/ or absolute Conan paths.
+            # Also fix the install name (LC_ID_DYLIB) for the renamed main library.
+            if [ -f "$STAGING/sharposrm.dylib" ]; then
+              install_name_tool -id "@rpath/sharposrm.dylib" "$STAGING/sharposrm.dylib" 2>/dev/null || true
+            fi
             for dylib in "$STAGING"/*.dylib; do
+              echo "--- Rewriting: $(basename $dylib) ---"
+              echo "Before:"
+              otool -L "$dylib" | grep -v "^$" | sed 's/^/  /'
               # Rewrite @rpath/ references → @loader_path/
               for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "^@rpath/"); do
-                install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" 2>/dev/null || true
+                echo "  -change \"$ref\" → \"@loader_path/$(basename $ref)\""
+                install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" || true
               done
               # Rewrite absolute Conan paths → @loader_path/
               for ref in $(otool -L "$dylib" | awk '{print $1}' | grep "\.conan2"); do
-                install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" 2>/dev/null || true
+                echo "  -change \"$ref\" → \"@loader_path/$(basename $ref)\""
+                install_name_tool -change "$ref" "@loader_path/$(basename $ref)" "$dylib" || true
               done
               # Add @loader_path RPATH and remove all absolute RPATHs
               install_name_tool -add_rpath @loader_path "$dylib" 2>/dev/null || true
@@ -330,7 +339,8 @@ jobs:
                 | while read old_rpath; do
                   install_name_tool -delete_rpath "$old_rpath" "$dylib" 2>/dev/null || true
                 done || true
-              echo "RPATH fixed: $(basename $dylib)"
+              echo "After:"
+              otool -L "$dylib" | grep -v "^$" | sed 's/^/  /'
             done
 
           elif [ "$RUNNER_OS" == "Windows" ]; then
@@ -588,7 +598,12 @@ jobs:
       - name: Configure local NuGet source
         shell: bash
         run: |
-          dotnet nuget add source "$(pwd)/nupkg-local" \
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            SOURCE_PATH="$(cygpath -w "$(pwd)/nupkg-local")"
+          else
+            SOURCE_PATH="$(pwd)/nupkg-local"
+          fi
+          dotnet nuget add source "$SOURCE_PATH" \
             --name local-nupkg \
             --store-password-in-clear-text
 
